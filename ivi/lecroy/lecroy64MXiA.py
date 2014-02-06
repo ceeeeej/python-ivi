@@ -37,7 +37,7 @@ class lecroy64MXiA(lecroyXiA):
         self._analog_channel_count = 4
         self._digital_channel_count = 0
         self._channel_count = self._analog_channel_count + self._digital_channel_count
-        self._bandwidth = 1e9
+        self._bandwidth = 600e6
 
         self._init_channels()
 
