@@ -152,7 +152,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                 scope.WaveformMeasurement, scope.MinMaxWaveform,
                 scope.ContinuousAcquisition, scope.AverageAcquisition,
                 scope.SampleMode, scope.AutoSetup):
-    "Lecroy generic IVI oscilloscope driver"
+    "LeCroy generic IVI oscilloscope driver"
 
     def __init__(self, *args, **kwargs):
         self.__dict__.setdefault('_instrument_id', '')
@@ -182,7 +182,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._identity_identifier = ""
         self._identity_revision = ""
         self._identity_vendor = ""
-        self._identity_instrument_manufacturer = "LeCroy Technologies"
+        self._identity_instrument_manufacturer = "LeCroy"
         self._identity_instrument_model = ""
         self._identity_instrument_firmware_revision = ""
         self._identity_specification_major_version = 4
