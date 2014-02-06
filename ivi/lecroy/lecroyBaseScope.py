@@ -187,11 +187,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._identity_instrument_firmware_revision = ""
         self._identity_specification_major_version = 4
         self._identity_specification_minor_version = 1
-        self._identity_supported_instrument_models = ['DSO7012A','DSO7014A','DSO7032A',
-                'DSO7034A','DSO7052A','DSO7054A','DSO7104A','MSO7012A','MSO7014A','MSO7032A',
-                'MSO7034A','MSO7052A','MSO7054A','MSO7104A','DSO7012B','DSO7014B','DSO7032B',
-                'DSO7034B','DSO7052B','DSO7054B','DSO7104B','MSO7012B','MSO7014B','MSO7032B',
-                'MSO7034B','MSO7052B','MSO7054B','MSO7104B']
+        self._identity_supported_instrument_models = ['104MXiA','104XiA','64MXiA', '64XiA','44MXiA','44XiA']
 
         ivi.add_property(self, 'channels[].label',
                         self._get_channel_label,

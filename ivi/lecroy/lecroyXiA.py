@@ -43,15 +43,16 @@ class lecroyXiA(lecroyBaseScope):
 
         self._analog_channel_name = list()
         self._analog_channel_count = 4
-        self._digital_channel_name = list()
-        self._digital_channel_count = 16
-        self._channel_count = self._analog_channel_count + self._digital_channel_count
-        self._bandwidth = 200e6
+        # Commented out the following lines as I don't believe these scopes have any digital channel support
+        # self._digital_channel_name = list()
+        # self._digital_channel_count = 16
+        # self._channel_count = self._analog_channel_count + self._digital_channel_count
+        # Modified channel_count equation to only include analog channels
+        self._channel_count = self._analog_channel_count
+        self._bandwidth = 1e9
 
-        self._identity_description = "Agilent InfiniiVision 2000A X-series IVI oscilloscope driver"
-        self._identity_supported_instrument_models = ['DSOX2002A','DSOX2004A','DSOX2012A',
-                'DSOX2014A','DSOX2022A','DSOX2024A','MSOX2002A','MSOX2004A','MSOX2012A','MSOX2014A',
-                'MSOX2022A','MSOX2024A']
+        self._identity_description = "Lecroy WaveRunner Xi-A series IVI oscilloscope driver"
+        self._identity_supported_instrument_models = ['104MXiA','104XiA','64MXiA', '64XiA','44MXiA','44XiA']
 
 
 
