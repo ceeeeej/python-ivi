@@ -24,17 +24,11 @@ THE SOFTWARE.
 
 """
 
-__all__ = [
-        # Base IVI class
-        "ivi",
-        # IVI abstract classes
-        "scope", "dmm", "fgen", "dcpwr", "swtch", "pwrmeter", "specan",
-        "rfsiggen", "counter",
-        # Generic IVI drivers
-        "scpi",
-        # IVI drivers
-        "agilent", "dicon", "colby", "jdsu", "lecroy", "rigol", "tektronix"]
-
-from .ivi import *
-from . import *
-
+# Oscilloscopes
+# WaveRunner Xi-A / MXi-A Oscilloscopes
+from .lecroywaverunner104MXiA import lecroywaverunner104MXiA
+from .lecroywaverunner104XiA import lecroywaverunner104XiA
+from .lecroywaverunner64MXiA import lecroywaverunner64MXiA
+from .lecroywaverunner64XiA import lecroywaverunner64XiA
+from .lecroywaverunner44MXiA import lecroywaverunner44MXiA
+from .lecroywaverunner44XiA import lecroywaverunner44XiA
