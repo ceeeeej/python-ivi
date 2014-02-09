@@ -2,7 +2,7 @@
 
 Python Interchangeable Virtual Instrument Library
 
-Copyright (c) 2012 Alex Forencich
+Copyright (c) 2012-2014 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -26,6 +26,7 @@ THE SOFTWARE.
 
 from .agilentBaseScope import *
 
+VerticalCoupling = set(['dc'])
 ScreenshotImageFormatMapping = {
         'tif': 'tif',
         'tiff': 'tif',
@@ -50,6 +51,10 @@ class agilent90000(agilentBaseScope):
         self._channel_common_mode = list()
         self._channel_differential = list()
         self._channel_differential_skew = list()
+        self._channel_display_auto = list()
+        self._channel_display_offset = list()
+        self._channel_display_range = list()
+        self._channel_display_scale = list()
         
         super(agilent90000, self).__init__(*args, **kwargs)
         
@@ -59,6 +64,8 @@ class agilent90000(agilentBaseScope):
         self._digital_channel_count = 16
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 13e9
+        
+        self._display_color_grade = False
         
         self._identity_description = "Agilent Infiniium 90000A/90000X series IVI oscilloscope driver"
         self._identity_supported_instrument_models = ['DSO90254A','DSO90404A','DSO90604A',
@@ -70,13 +77,95 @@ class agilent90000(agilentBaseScope):
         
         ivi.add_property(self, 'channels[].common_mode',
                         self._get_channel_common_mode,
-                        self._set_channel_common_mode)
+                        self._set_channel_common_mode,
+                        None,
+                        ivi.Doc("""
+                        Turns on/off common mode for the channel.  Channels 2 and 4 may form a
+                        common mode channel and channels 1 and 3 may form a common mode channel.
+                        """))
         ivi.add_property(self, 'channels[].differential',
                         self._get_channel_differential,
-                        self._set_channel_differential)
+                        self._set_channel_differential,
+                        None,
+                        ivi.Doc("""
+                        Turns on/off differential mode for the channel.  Channels 2 and 4 may form
+                        a differential channel and channels 1 and 3 may form a differential
+                        channel.
+                        """))
         ivi.add_property(self, 'channels[].differential_skew',
                         self._get_channel_differential_skew,
-                        self._set_channel_differential_skew)
+                        self._set_channel_differential_skew,
+                        None,
+                        ivi.Doc("""
+                        Specifies the skew that is applied to the differential or common mode pair
+                        of channels.  Units are seconds.
+                        """))
+        ivi.add_property(self, 'channels[].display_auto',
+                        self._get_channel_display_auto,
+                        self._set_channel_display_auto,
+                        None,
+                        ivi.Doc("""
+                        Sets the differential and common mode display scale and offset to track
+                        the acquisition scale and offset.  
+                        """))
+        ivi.add_property(self, 'channels[].display_offset',
+                        self._get_channel_display_offset,
+                        self._set_channel_display_offset,
+                        None,
+                        ivi.Doc("""
+                        Sets the displayed offset of the selected channel.  Setting this parameter
+                        disables display_auto.  Units are volts.  
+                        """))
+        ivi.add_property(self, 'channels[].display_range',
+                        self._get_channel_display_range,
+                        self._set_channel_display_range,
+                        None,
+                        ivi.Doc("""
+                        Sets the full scale vertical range of the selected channel.  Setting this
+                        parameter disables display_auto.  Units are volts.  
+                        """))
+        ivi.add_property(self, 'channels[].display_scale',
+                        self._get_channel_display_scale,
+                        self._set_channel_display_scale,
+                        None,
+                        ivi.Doc("""
+                        Sets the displayed scale of the selected channel per division.  Setting
+                        this parameter disables display_auto.  Units are volts.  
+                        """))
+        ivi.add_property(self, 'display.color_grade',
+                        self._get_display_color_grade,
+                        self._set_display_color_grade,
+                        None,
+                        ivi.Doc("""
+                        Controls color grade persistance.
+                        
+                        When in the color grade persistance mode, all waveforms are mapped into a
+                        database and shown with different colors representing varying number of
+                        hits in a pixel.  Vector display mode is disabled when color grade is
+                        enabled.
+                        """))
+        ivi.add_method(self, 'display.fetch_color_grade_levels',
+                        self._fetch_display_color_grade_levels,
+                        ivi.Doc("""
+                        Returns the range of hits represented by each color.  Fourteen values are
+                        returned, representing the minimum and maximum count for each of seven
+                        colors.  The values are returned in the following order:
+                        
+                        * White minimum value
+                        * White maximum value
+                        * Yellow minimum value
+                        * Yellow maximum value
+                        * Orange minimum value
+                        * Orange maximum value
+                        * Red minimum value
+                        * Red maximum value
+                        * Pink minimum value
+                        * Pink maximum value
+                        * Blue minimum value
+                        * Blue maximum value
+                        * Green minimum value
+                        * Green maximum value
+                        """))
         
         self._init_channels()
         
@@ -97,11 +186,19 @@ class agilent90000(agilentBaseScope):
         self._channel_common_mode = list()
         self._channel_differential = list()
         self._channel_differential_skew = list()
+        self._channel_display_auto = list()
+        self._channel_display_offset = list()
+        self._channel_display_range = list()
+        self._channel_display_scale = list()
         
         for i in range(self._analog_channel_count):
             self._channel_common_mode.append(False)
             self._channel_differential.append(False)
             self._channel_differential_skew.append(0)
+            self._channel_display_auto.append(True)
+            self._channel_display_offset.append(0.0)
+            self._channel_display_range.append(1.0)
+            self._channel_display_scale.append(0.1)
     
     
     def _display_fetch_screenshot(self, format='png', invert=False):
@@ -116,6 +213,39 @@ class agilent90000(agilentBaseScope):
         self._write(":display:data? %s, screen, on, %s" % (format, 'invert' if invert else 'normal'))
         
         return self._read_ieee_block()
+    
+    def _get_display_vectors(self):
+        if not self._driver_operation_simulate and not self._get_cache_valid():
+            self._display_vectors = bool(int(self._ask(":display:connect?")))
+            self._set_cache_valid()
+        return self._display_vectors
+    
+    def _set_display_vectors(self, value):
+        value = bool(value)
+        if not self._driver_operation_simulate:
+            self._write(":display:connect %d" % int(value))
+        self._display_vectors = value
+        self._set_cache_valid()
+    
+    def _get_display_color_grade(self):
+        if not self._driver_operation_simulate and not self._get_cache_valid():
+            self._display_color_grade = bool(int(self._ask(":display:cgrade?")))
+            self._set_cache_valid()
+        return self._display_color_grade
+    
+    def _set_display_color_grade(self, value):
+        value = bool(value)
+        if not self._driver_operation_simulate:
+            self._write(":display:cgrade %d" % int(value))
+        self._display_color_grade = value
+        self._set_cache_valid()
+    
+    def _fetch_display_color_grade_levels(self):
+        if self._driver_operation_simulate():
+            return [0]*14
+        
+        lst = self._ask(":display:cgrade:levels?").split(',')
+        return [int(x) for x in lst]
     
     def _get_channel_common_mode(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
@@ -160,6 +290,80 @@ class agilent90000(agilentBaseScope):
         if not self._driver_operation_simulate:
             self._write(":%s:differential:skew %e" % (self._channel_name[index], value))
         self._channel_differential_skew[index] = value
+        self._set_cache_valid(index=index)
+    
+    def _get_channel_display_auto(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_display_auto[index] = bool(int(self._ask(":%s:display:auto?" % self._channel_name[index])))
+            self._set_cache_valid(index=index)
+        return self._channel_display_auto[index]
+    
+    def _set_channel_display_auto(self, index, value):
+        index = ivi.get_index(self._analog_channel_name, index)
+        value = bool(value)
+        if not self._driver_operation_simulate:
+            self._write(":%s:display:auto %d" % (self._channel_name[index], int(value)))
+        self._channel_display_auto[index] = value
+        self._set_cache_valid(index=index)
+    
+    def _get_channel_display_offset(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_display_offset[index] = float(self._ask(":%s:display:offset?" % self._channel_name[index]))
+            self._set_cache_valid(index=index)
+        return self._channel_display_offset[index]
+    
+    def _set_channel_display_offset(self, index, value):
+        index = ivi.get_index(self._analog_channel_name, index)
+        value = float(value)
+        if not self._driver_operation_simulate:
+            self._write(":%s:display:offset %e" % (self._channel_name[index], value))
+        self._channel_display_offset[index] = value
+        self._set_cache_valid(index=index)
+    
+    def _get_channel_display_range(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_display_range[index] = float(self._ask(":%s:display:range?" % self._channel_name[index]))
+            self._set_cache_valid(index=index)
+        return self._channel_display_range[index]
+    
+    def _set_channel_display_range(self, index, value):
+        index = ivi.get_index(self._analog_channel_name, index)
+        value = float(value)
+        if not self._driver_operation_simulate:
+            self._write(":%s:display:range %e" % (self._channel_name[index], value))
+        self._channel_display_range[index] = value
+        self._set_cache_valid(index=index)
+    
+    def _get_channel_display_scale(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_display_scale[index] = float(self._ask(":%s:display:scale?" % self._channel_name[index]))
+            self._set_cache_valid(index=index)
+        return self._channel_display_scale[index]
+    
+    def _set_channel_display_scale(self, index, value):
+        index = ivi.get_index(self._analog_channel_name, index)
+        value = float(value)
+        if not self._driver_operation_simulate:
+            self._write(":%s:display:scale %e" % (self._channel_name[index], value))
+        self._channel_display_scale[index] = value
+        self._set_cache_valid(index=index)
+    
+    def _get_channel_input_impedance(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        # fixed
+        self._channel_input_impedance[index] = 50
+        return self._channel_input_impedance[index]
+    
+    def _set_channel_input_impedance(self, index, value):
+        value = float(value)
+        index = ivi.get_index(self._analog_channel_name, index)
+        if value != 50:
+            raise Exception('Invalid impedance selection')
+        self._channel_input_impedance[index] = value
         self._set_cache_valid(index=index)
     
     def _measurement_fetch_waveform(self, index):

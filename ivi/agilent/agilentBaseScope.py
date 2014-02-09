@@ -2,7 +2,7 @@
 
 Python Interchangeable Virtual Instrument Library
 
-Copyright (c) 2012 Alex Forencich
+Copyright (c) 2012-2014 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -139,8 +139,6 @@ MeasurementFunctionMappingDigital = {
         'width_positive': 'pwidth',
         'duty_cycle_positive': 'dutycycle'}
 ScreenshotImageFormatMapping = {
-        'tif': 'tiff',
-        'tiff': 'tiff',
         'bmp': 'bmp',
         'bmp24': 'bmp',
         'bmp8': 'bmp8bit',
@@ -178,6 +176,8 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 1e9
         
+        self._display_vectors = True
+        
         self._identity_description = "Agilent generic IVI oscilloscope driver"
         self._identity_identifier = ""
         self._identity_revision = ""
@@ -193,30 +193,98 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                 'DSO7034B','DSO7052B','DSO7054B','DSO7104B','MSO7012B','MSO7014B','MSO7032B',
                 'MSO7034B','MSO7052B','MSO7054B','MSO7104B']
         
-        ivi.add_property(self, 'channels[].label',
-                        self._get_channel_label,
-                        self._set_channel_label)
-        ivi.add_property(self, 'channels[].probe_skew',
-                        self._get_channel_probe_skew,
-                        self._set_channel_probe_skew)
-        ivi.add_property(self, 'channels[].invert',
-                        self._get_channel_invert,
-                        self._set_channel_invert)
-        ivi.add_property(self, 'channels[].probe_id',
-                        self._get_channel_probe_id)
         ivi.add_property(self, 'channels[].bw_limit',
                         self._get_channel_bw_limit,
-                        self._set_channel_bw_limit)
+                        self._set_channel_bw_limit,
+                        None,
+                        ivi.Doc("""
+                        Commands an internal low-pass filter.  When the filter is on, the
+                        bandwidth of the channel is limited to approximately 25 MHz.
+                        """))
+        ivi.add_property(self, 'channels[].invert',
+                        self._get_channel_invert,
+                        self._set_channel_invert,
+                        None,
+                        ivi.Doc("""
+                        Selects whether or not to invert the channel.
+                        """))
+        ivi.add_property(self, 'channels[].label',
+                        self._get_channel_label,
+                        self._set_channel_label,
+                        None,
+                        ivi.Doc("""
+                        Sets the channel label.  Setting a channel label also adds the label to
+                        the nonvolatile label list.
+                        """))
+        ivi.add_property(self, 'channels[].probe_id',
+                        self._get_channel_probe_id,
+                        None,
+                        None,
+                        ivi.Doc("""
+                        Returns the type of probe attached to the channel.
+                        """))
+        ivi.add_property(self, 'channels[].probe_skew',
+                        self._get_channel_probe_skew,
+                        self._set_channel_probe_skew,
+                        None,
+                        ivi.Doc("""
+                        Specifies the channel-to-channel skew factor for the channel.  Each analog
+                        channel can be adjusted + or - 100 ns for a total of 200 ns difference
+                        between channels.  This can be used to compensate for differences in cable
+                        delay.  Units are seconds.
+                        """))
+        ivi.add_property(self, 'channels[].scale',
+                        self._get_channel_scale,
+                        self._set_channel_scale,
+                        None,
+                        ivi.Doc("""
+                        Specifies the vertical scale, or units per division, of the channel.  Units
+                        are volts.
+                        """))
+        ivi.add_property(self, 'display.vectors',
+                        self._get_display_vectors,
+                        self._set_display_vectors,
+                        None,
+                        ivi.Doc("""
+                        When enabled, draws a line between consecutive waveform data points.
+                        """))
         ivi.add_method(self, 'system.fetch_setup',
-                        self._system_fetch_setup)
+                        self._system_fetch_setup,
+                        ivi.Doc("""
+                        Returns the current oscilloscope setup in the form of a binary block.  The
+                        setup can be stored in memory or written to a file and then reloaded to the
+                        oscilloscope at a later time with system.load_setup.
+                        """))
         ivi.add_method(self, 'system.load_setup',
-                        self._system_load_setup)
+                        self._system_load_setup,
+                        ivi.Doc("""
+                        Transfers a binary block of setup data to the scope to reload a setup
+                        previously saved with system.fetch_setup.
+                        """))
+        ivi.add_method(self, 'system.display_string',
+                        self._system_display_string,
+                        ivi.Doc("""
+                        Writes a string to the advisory line on the instrument display.  Send None
+                        or an empty string to clear the advisory line.  
+                        """))
         ivi.add_method(self, 'display.fetch_screenshot',
-                        self._display_fetch_screenshot)
+                        self._display_fetch_screenshot,
+                        ivi.Doc("""
+                        Captures the oscilloscope screen and transfers it in the specified format.
+                        The display graticule is optionally inverted.
+                        """))
         ivi.add_method(self, 'memory.save',
-                        self._memory_save)
+                        self._memory_save,
+                        ivi.Doc("""
+                        Stores the current state of the instrument into an internal storage
+                        register.  Use memory.recall to restore the saved state.
+                        """))
         ivi.add_method(self, 'memory.recall',
-                        self._memory_recall)
+                        self._memory_recall,
+                        ivi.Doc("""
+                        Recalls the state of the instrument from an internal storage register
+                        that was previously saved with memory.save.
+                        """))
         
         self._init_channels()
     
@@ -366,6 +434,15 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             return
         
         self._write_ieee_block(data, ':system:setup ')
+        
+        self.driver_operation.invalidate_all_attributes()
+    
+    def _system_display_string(self, string = None):
+        if string is None:
+            string = ""
+        
+        if not self._driver_operation_simulate:
+            self._write(":system:dsp \"%s\"" % string)
     
     def _display_fetch_screenshot(self, format='png', invert=False):
         if self._driver_operation_simulate:
@@ -380,6 +457,19 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._write(":display:data? %s" % format)
         
         return self._read_ieee_block()
+    
+    def _get_display_vectors(self):
+        if not self._driver_operation_simulate and not self._get_cache_valid():
+            self._display_vectors = bool(int(self._ask(":display:vectors?")))
+            self._set_cache_valid()
+        return self._display_vectors
+    
+    def _set_display_vectors(self, value):
+        value = bool(value)
+        if not self._driver_operation_simulate:
+            self._write(":display:vectors %d" % int(value))
+        self._display_vectors = value
+        self._set_cache_valid()
     
     def _get_acquisition_start_time(self):
         pos = 0
@@ -616,6 +706,21 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         if not self._driver_operation_simulate:
             self._write(":%s:range %e" % (self._channel_name[index], value))
         self._channel_range[index] = value
+        self._set_cache_valid(index=index)
+    
+    def _get_channel_scale(self, index):
+        index = ivi.get_index(self._channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_scale[index] = float(self._ask(":%s:scale?" % self._channel_name[index]))
+            self._set_cache_valid(index=index)
+        return self._channel_scale[index]
+    
+    def _set_channel_scale(self, index, value):
+        index = ivi.get_index(self._channel_name, index)
+        value = float(value)
+        if not self._driver_operation_simulate:
+            self._write(":%s:scale %e" % (self._channel_name[index], value))
+        self._channel_scale[index] = value
         self._set_cache_valid(index=index)
     
     def _get_measurement_status(self):
@@ -1102,6 +1207,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             raise OutOfRangeException()
         if not self._driver_operation_simulate:
             self._write("*rcl %d" % index)
+            self.driver_operation.invalidate_all_attributes()
     
     
     
