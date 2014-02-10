@@ -52,5 +52,5 @@ class lecroyWaverunner2(lecroyBaseScope):
         self._channel_count = self._analog_channel_count
         self._bandwidth = 1e9
         # TODO: add all Waverunner-2 models below and .py files for each model
-        self._identity_description = "LeCroy Waverunner-2 IVI oscilloscope driver"
+        self._identity_description = "LeCroy WaveRunner-2 IVI oscilloscope driver"
         self._identity_supported_instrument_models = ['LT264']
