@@ -33,7 +33,9 @@ class chroma62000p(chromaBaseDCPwr):
         self.__dict__.setdefault('_instrument_id', '')
         
         super(chroma62000p, self).__init__(*args, **kwargs)
-        
+
+        # TODO: add other options for Chroma ATE supplies like slew rate or output level changes
+
         self._output_count = 1
         
         self._output_spec = [
