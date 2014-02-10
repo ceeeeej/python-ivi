@@ -50,7 +50,7 @@ class chromaBaseDCPwr(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTr
                     'P600V': (600.0, 120.0)
                 },
                 'ovp_max': 660.0,
-                'ocp_max': 120.0,
+                'ocp_max': 132.0,
                 'voltage_max': 600.0,
                 'current_max': 120.0
             }
