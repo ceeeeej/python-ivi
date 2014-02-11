@@ -65,6 +65,9 @@ class agilent90000(agilentBaseScope):
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 13e9
         
+        self._horizontal_divisions = 10
+        self._vertical_divisions = 8
+        
         self._display_color_grade = False
         
         self._identity_description = "Agilent Infiniium 90000A/90000X series IVI oscilloscope driver"
@@ -181,7 +184,10 @@ class agilent90000(agilentBaseScope):
         return (error_code, error_message)
     
     def _init_channels(self):
-        super(agilent90000, self)._init_channels()
+        try:
+            super(agilent90000, self)._init_channels()
+        except AttributeError:
+            pass
         
         self._channel_common_mode = list()
         self._channel_differential = list()
