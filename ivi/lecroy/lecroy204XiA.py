@@ -26,11 +26,11 @@ THE SOFTWARE.
 
 from .lecroyXiA import *
 
-class lecroy104XiA(lecroyXiA):
+class lecroy204XiA(lecroyXiA):
     "Lecroy WaveRunner 204Xi-A IVI oscilloscope driver"
 
     def __init__(self, *args, **kwargs):
-        self.__dict__.setdefault('_instrument_id', 'WaveRunner 104Xi-A')
+        self.__dict__.setdefault('_instrument_id', 'WaveRunner 204Xi-A')
 
         super(lecroy104XiA, self).__init__(*args, **kwargs)
 

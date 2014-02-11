@@ -45,11 +45,9 @@ class lecroyXiA(lecroyBaseScope):
         self._analog_channel_name = list()
         self._analog_channel_count = 4
         # Commented out the following lines as I don't believe these scopes have any digital channel support
-        # self._digital_channel_name = list()
-        # self._digital_channel_count = 16
-        # self._channel_count = self._analog_channel_count + self._digital_channel_count
-        # Modified channel_count equation to only include analog channels
-        self._channel_count = self._analog_channel_count
+        self._digital_channel_name = list()
+        self._digital_channel_count = 16
+        self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 1e9
 
         self._identity_description = "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"

@@ -24,11 +24,18 @@ THE SOFTWARE.
 
 """
 
-# Oscilloscopes
-# WaveRunner Xi-A / MXi-A Oscilloscopes
-from .lecroywaverunner104MXiA import lecroywaverunner104MXiA
-from .lecroywaverunner104XiA import lecroywaverunner104XiA
-from .lecroywaverunner64MXiA import lecroywaverunner64MXiA
-from .lecroywaverunner64XiA import lecroywaverunner64XiA
-from .lecroywaverunner44MXiA import lecroywaverunner44MXiA
-from .lecroywaverunner44XiA import lecroywaverunner44XiA
+# DC Power Supply
+# Chroma 62000P Programmable DC Power Supply
+
+from .chroma62006p10025 import chroma62006p10025
+from .chroma62006p3008 import chroma62006p3008
+from .chroma62006p3080 import chroma62006p3080
+from .chroma62012p10050 import chroma62012p10050
+from .chroma62012p40120 import chroma62012p40120
+from .chroma62012p6008 import chroma62012p6008
+from .chroma62012p8060 import chroma62012p8060
+from .chroma62024p10050 import chroma62024p10050
+from .chroma62024p40120 import chroma62024p40120
+from .chroma62024p6008 import chroma62024p6008
+from .chroma62024p8060 import chroma62024p8060
+from .chroma62050p100100 import chroma62050p100100
