@@ -24,20 +24,20 @@ THE SOFTWARE.
 
 """
 
-from .lecroyXiA import *
+from .lecroyWRXIA import *
 
-class lecroy62XiA(lecroyXiA):
-    "Lecroy WaveRunner 62Xi-A IVI oscilloscope driver"
+class lecroyWR204XIA(lecroyWRXIA):
+    "Lecroy WaveRunner 204Xi-A IVI oscilloscope driver"
 
     def __init__(self, *args, **kwargs):
-        self.__dict__.setdefault('_instrument_id', 'WaveRunner 64Xi-A')
+        self.__dict__.setdefault('_instrument_id', 'WaveRunner 204Xi-A')
 
-        super(lecroy104MXiA, self).__init__(*args, **kwargs)
+        super(lecroy104XiA, self).__init__(*args, **kwargs)
 
         self._analog_channel_count = 4
         self._digital_channel_count = 0
         self._channel_count = self._analog_channel_count + self._digital_channel_count
-        self._bandwidth = 600e6
+        self._bandwidth = 1e9
 
         self._init_channels()
 

@@ -24,21 +24,32 @@ THE SOFTWARE.
 
 """
 
-from .lecroyXiA import *
+from .lecroyBaseScope import *
 
-class lecroy204XiA(lecroyXiA):
-    "Lecroy WaveRunner 204Xi-A IVI oscilloscope driver"
+ScreenshotImageFormatMapping = {
+    'bmp': 'bmp',
+    'bmp24': 'bmp',
+    'bmp8': 'bmp8bit',
+    'png': 'png',
+    'png24': 'png'}
+
+
+class lecroyWRXIA(lecroyBaseScope):
+    "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
 
     def __init__(self, *args, **kwargs):
-        self.__dict__.setdefault('_instrument_id', 'WaveRunner 204Xi-A')
+        self.__dict__.setdefault('_instrument_id', '')
 
-        super(lecroy104XiA, self).__init__(*args, **kwargs)
+        super(lecroyWRXIA, self).__init__(*args, **kwargs)
 
+        self._analog_channel_name = list()
         self._analog_channel_count = 4
-        self._digital_channel_count = 0
+        # Commented out the following lines as I don't believe these scopes have any digital channel support
+        self._digital_channel_name = list()
+        self._digital_channel_count = 16
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 1e9
 
-        self._init_channels()
-
-
+        self._identity_description = "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
+        self._identity_supported_instrument_models = ['WR204MXI-A', '204XiA', '104MXiA', '104XiA', '64MXiA', '64XiA',
+                                                      '62XiA', '44MXiA', '44XiA']
