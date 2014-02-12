@@ -495,9 +495,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
         self._analog_channel_name = list()
         for i in range(self._analog_channel_count):
-            self._channel_name.append("channel%d" % (i+1))
+            self._channel_name.append("C%d" % (i+1))
             self._channel_label.append("%d" % (i+1))
-            self._analog_channel_name.append("channel%d" % (i+1))
+            self._analog_channel_name.append("C%d" % (i+1))
             self._channel_probe_skew.append(0)
             self._channel_invert.append(False)
             self._channel_probe_id.append("NONE")
@@ -557,8 +557,11 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         # Old commands
         # self._write(":hardcopy:inksaver %d" % int(bool(invert)))
         # self._write(":display:data? %s" % format)
+
         # New commands
-        self._write("VBS 'app.UsePrintColor = True'" % int(bool(invert)))
+        # To fetch a screenshot we want to setup print options first
+        self._write("VBS 'app.Hardcopy.Destination = \"File\"'")
+        self._write("VBS 'app.Hardcopy.UseColor = \"Print\"'")
         #self._write(":display:data? %s" % format)
         
         return self._read_ieee_block()
