@@ -24,28 +24,10 @@ THE SOFTWARE.
 
 """
 
-from .agilent2000A import *
+from .agilent3000A import *
 
-OutputMode = set(['function', 'arbitrary'])
-StandardWaveformMapping = {
-        'sine': 'sin',
-        'square': 'squ',
-        #'triangle': 'tri',
-        'ramp_up': 'ramp',
-        #'ramp_down',
-        #'dc'
-        'pulse': 'puls',
-        'noise': 'nois',
-        'dc': 'dc',
-        'sinc': 'sinc',
-        'exprise': 'expr',
-        'expfall': 'expf',
-        'cardiac': 'card',
-        'gaussian': 'gaus'
-        }
-
-class agilent3000A(agilent2000A):
-    "Agilent InfiniiVision 3000A series IVI oscilloscope driver"
+class agilent4000A(agilent3000A):
+    "Agilent InfiniiVision 4000A series IVI oscilloscope driver"
     
     def __init__(self, *args, **kwargs):
         self.__dict__.setdefault('_instrument_id', '')
@@ -57,18 +39,18 @@ class agilent3000A(agilent2000A):
         self._digital_channel_name = list()
         self._digital_channel_count = 16
         self._channel_count = self._analog_channel_count + self._digital_channel_count
-        self._bandwidth = 1e9
+        self._bandwidth = 1.5e9
         
         self._horizontal_divisions = 10
         self._vertical_divisions = 8
 
         # wavegen option
-        self._output_count = 1
+        self._output_count = 2
         
         self._identity_description = "Agilent InfiniiVision 3000A X-series IVI oscilloscope driver"
-        self._identity_supported_instrument_models = ['DSOX3012A','DSOX3014A','DSOX3024A',
-                'DSOX3032A','DSOX3034A','DSOX3052A','DSOX3054A','DSOX3104A','MSOX3012A','MSOX3014A',
-                'MSOX3024A','MSOX3032A','MSOX3034A','MSOX3052A','MSOX3054A','MSOX3104A']
+        self._identity_supported_instrument_models = ['DSOX4022A','DSOX4024A','DSOX4032A',
+                'DSOX4034A','DSOX4052A','DSOX4054A','DSOX4104A','DSOX4154A','MSOX4022A','MSOX4024A',
+                'MSOX4032A','MSOX4034A','MSOX4052A','MSOX4054A','MSOX4104A','MSOX4154A']
 
         self._init_outputs()
         
