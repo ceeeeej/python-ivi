@@ -407,7 +407,6 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             id_short = id[:len(id_check)]
             if id_short != id_check:
                 raise Exception("Instrument ID mismatch, expecting %s, got %s", id_check, id_short)
-        
         # reset
         if reset:
             self.utility.reset()
@@ -604,7 +603,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
     def _get_timebase_range(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._timebase_range = float(self._ask(":timebase:range?"))
+            self._timebase_range = float(self._ask(":TDIV?"))
             self._timebase_scale = self._timebase_range / self._horizontal_divisions
             self._set_cache_valid()
             self._set_cache_valid(True, 'timebase_scale')

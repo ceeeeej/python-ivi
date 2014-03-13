@@ -40,5 +40,3 @@ class lecroyWR104XIA(lecroyWRXIA):
         self._bandwidth = 1e9
 
         self._init_channels()
-
-
