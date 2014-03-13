@@ -141,9 +141,12 @@ MeasurementFunctionMappingDigital = {
 ScreenshotImageFormatMapping = {
         'bmp': 'bmp',
         'bmp24': 'bmp',
-        'bmp8': 'bmp8bit',
+        'bmp8': 'bmpcomp',
+        'jpeg': 'jpeg',
         'png': 'png',
-        'png24': 'png'}
+        'png24': 'png',
+        'psd': 'psd',
+        'tiff': 'tiff'}
 TimebaseModeMapping = {
         'main': 'main',
         'window': 'wind',
@@ -551,19 +554,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
         if format not in ScreenshotImageFormatMapping:
             raise ivi.ValueNotSupportedException()
-        
         format = ScreenshotImageFormatMapping[format]
-
-        # Old commands
-        # self._write(":hardcopy:inksaver %d" % int(bool(invert)))
-        # self._write(":display:data? %s" % format)
-
-        # New commands
-        # To fetch a screenshot we want to setup print options first
-        self._write("VBS 'app.Hardcopy.Destination = \"File\"'")
-        self._write("VBS 'app.Hardcopy.UseColor = \"Print\"'")
-        #self._write(":display:data? %s" % format)
-        
+        self._write(":HCSU DEV,%s,FORMAT,PORTRAIT,BCKG,WHITE,DEST,\"REMOTE\",PORT,\"NET\",AREA,GRIDAREAONLY" % str(format))
+        self._write(":SCDP")
         return self._read_ieee_block()
     
     def _get_timebase_mode(self):
@@ -620,7 +613,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     def _set_timebase_range(self, value):
         value = float(value)
         if not self._driver_operation_simulate:
-            self._write(":timebase:range %e" % value)
+            self._write(":TDIV %e" % value)
         self._timebase_range = value
         self._timebase_scale = value / self._horizontal_divisions
         self._set_cache_valid()
@@ -628,7 +621,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
     def _get_timebase_scale(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._timebase_scale = float(self._ask(":timebase:scale?"))
+            self._timebase_scale = float(self._ask(":TDIV?"))
             self._timebase_range = self._timebase_scale * self._horizontal_divisions
             self._set_cache_valid()
             self._set_cache_valid(True, 'timebase_range')
@@ -637,7 +630,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     def _set_timebase_scale(self, value):
         value = float(value)
         if not self._driver_operation_simulate:
-            self._write(":timebase:scale %e" % value)
+            self._write(":TDIV %e" % value)
         self._timebase_scale = value
         self._timebase_range = value * self._horizontal_divisions
         self._set_cache_valid()

@@ -27,11 +27,14 @@ THE SOFTWARE.
 from .lecroyBaseScope import *
 
 ScreenshotImageFormatMapping = {
-    'bmp': 'bmp',
-    'bmp24': 'bmp',
-    'bmp8': 'bmp8bit',
-    'png': 'png',
-    'png24': 'png'}
+        'bmp': 'bmp',
+        'bmp24': 'bmp',
+        'bmp8': 'bmpcomp',
+        'jpeg': 'jpeg',
+        'png': 'png',
+        'png24': 'png',
+        'psd': 'psd',
+        'tiff': 'tiff'}
 
 
 class lecroyWRXIA(lecroyBaseScope):
