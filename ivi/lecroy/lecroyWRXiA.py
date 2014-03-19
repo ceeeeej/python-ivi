@@ -24,6 +24,10 @@ THE SOFTWARE.
 
 """
 
+# Commands for this scope series are referenced form the following documentation:
+# http://cdn.teledynelecroy.com/files/manuals/wm-rcm-e_rev_d.pdf
+# http://cdn.teledynelecroy.com/files/manuals/automation_command_ref_manual_wr.pdf
+
 from .lecroyBaseScope import *
 
 ScreenshotImageFormatMapping = {
@@ -55,11 +59,24 @@ class lecroyWRXIA(lecroyBaseScope):
         self._identity_supported_instrument_models = ['WR204MXI-A', 'WR204XI-A', 'WR104MXI-A', 'WR104XI-A', 'WR64MXI-A', 'WR64XI-A',
                                                       'WR62XI-A', 'WR44MXI-A', 'WR44XI-A']
 
-        # To use some advanced commands of the WRXIA series, we setup the XStreamDSO as "app" using the VBS command
-        #self._write("VBS \'app = CreateObject(\"LeCroy.XStreamDSO\")\'")
+        ivi.add_property(self, 'channels[].noise_filter',
+                        self._get_channel_noise_filter,
+                        self._set_channel_noise_filter,
+                        None,
+                        ivi.Doc("""
+                        Specifies the channel enhanced noise filter. Set to 'None' to turn off the filter.
+
+                        Values:
+                        * 'None'
+                        * '0.5bits'
+                        * '1.0bits'
+                        * '1.5bits'
+                        * '2.0bits'
+                        * '2.5bits'
+                        * '3.bits'
+                        """))
+
         self._init_channels()
-        #self._channel_count = self._analog_channel_count + self._digital_channel_count
-        #self.channels._set_list(self._channel_name)
 
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_label(self, index):
@@ -75,7 +92,7 @@ class lecroyWRXIA(lecroyBaseScope):
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate:
             self._write("VBS \"app.Acquisition.%s.LabelsText = \"\"%s\"" % (self._channel_name[index], value))
-            self._write("VBS \"app.Acquisition.%s.ViewLabels = \"True" % self._channel_name[index])
+            self._write("VBS \"app.Acquisition.%s.ViewLabels = True\"" % self._channel_name[index])
         self._channel_label[index] = value
         self._set_cache_valid(index=index)
 
@@ -94,4 +111,20 @@ class lecroyWRXIA(lecroyBaseScope):
         if not self._driver_operation_simulate:
             self._write("VBS \"app.Acquisition.%s.Invert = %s\"" % (self._channel_name[index], value))
         self._channel_invert[index] = value
+        self._set_cache_valid(index=index)
+
+    # TODO: test channel_noise_filter
+    def _get_channel_noise_filter(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_noise_filter[index] = self._ask("VBS? \"Return=app.Acquisition.%s.EnhanceResType\"" % (self._channel_name[index]))
+            self._set_cache_valid(index=index)
+        return self._channel_invert[index]
+    # TODO: test channel_noise_filter
+    def _set_channel_noise_filter(self, index, value):
+        index = ivi.get_index(self._analog_channel_name, index)
+        value = bool(value)
+        if not self._driver_operation_simulate:
+            self._write("VBS \"app.Acquisition.%s.EnhanceResType = \"\"%s\"" % (self._channel_name[index], value))
+        self._channel_noise_filter[index] = value
         self._set_cache_valid(index=index)
