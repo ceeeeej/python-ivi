@@ -82,7 +82,9 @@ class lecroyWRXIA(lecroyBaseScope):
     def _get_channel_label(self, index):
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_label[index] = self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index])).strip('"')
+            # TODO: test command again, may need to add the .strip('"') to the end if this does not work
+            self._channel_label[index] = self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index]))
+            #self._channel_label[index] = self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index])).strip('"')
         self._set_cache_valid(index=index)
         return self._channel_label[index]
 
