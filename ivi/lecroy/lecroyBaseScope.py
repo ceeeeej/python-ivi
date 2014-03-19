@@ -35,27 +35,14 @@ AcquisitionTypeMapping = {
         'peak_detect': 'peak',
         'high_resolution': 'hres',
         'average': 'aver'}
-VerticalCoupling = set(['ac', 'dc'])
+VerticalCoupling = set(['A1M', 'D1M', 'D50', 'GND'])
+# Bandwidth Limits, OFF = none, ON = 20 MHz, 200MHZ = 200 MHz
+BandwidthLimit = set(['OFF', 'ON', '200MHZ'])
 TriggerTypeMapping = {
-        'edge': 'edge',
-        'width': 'glit',
-        'glitch': 'glit',
-        'tv': 'tv',
-        #'immediate': '',
-        'ac_line': 'edge',
-        'pattern': 'patt',
-        'can': 'can',
-        'duration': 'dur',
-        'i2s': 'i2s',
-        'iic': 'iic',
-        'eburst': 'ebur',
-        'lin': 'lin',
-        'm1553': 'm1553',
-        'sequence': 'seq',
-        'spi': 'spi',
-        'uart': 'uart',
-        'usb': 'usb',
-        'flexray': 'flex'}
+        'auto': 'auto',
+        'norm': 'norm',
+        'single': 'single',
+        'stop': 'stop',}
 TriggerCouplingMapping = {
         'ac': ('ac', 0, 0),
         'dc': ('dc', 0, 0),
@@ -212,14 +199,14 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._identity_specification_minor_version = 1
         self._identity_supported_instrument_models = ['WR204MXI-A', 'WR204XI-A', 'WR104MXI-A', 'WR104XI-A', 'WR64MXI-A', 'WR64XI-A',
                                                       'WR62XI-A', 'WR44MXI-A', 'WR44XI-A']
-        
+
         ivi.add_property(self, 'channels[].bw_limit',
                         self._get_channel_bw_limit,
                         self._set_channel_bw_limit,
                         None,
                         ivi.Doc("""
                         Commands an internal low-pass filter.  When the filter is on, the
-                        bandwidth of the channel is limited to approximately 25 MHz.
+                        bandwidth of the channel is limited to approximately 20 MHz.
                         """))
         ivi.add_property(self, 'channels[].invert',
                         self._get_channel_invert,
@@ -234,24 +221,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         None,
                         ivi.Doc("""
                         Sets the channel label.  Setting a channel label also adds the label to
-                        the nonvolatile label list.
-                        """))
-        ivi.add_property(self, 'channels[].probe_id',
-                        self._get_channel_probe_id,
-                        None,
-                        None,
-                        ivi.Doc("""
-                        Returns the type of probe attached to the channel.
-                        """))
-        ivi.add_property(self, 'channels[].probe_skew',
-                        self._get_channel_probe_skew,
-                        self._set_channel_probe_skew,
-                        None,
-                        ivi.Doc("""
-                        Specifies the channel-to-channel skew factor for the channel.  Each analog
-                        channel can be adjusted + or - 100 ns for a total of 200 ns difference
-                        between channels.  This can be used to compensate for differences in cable
-                        delay.  Units are seconds.
+                        the nonvolatile label list. Setting the label will turn it's display on.
                         """))
         ivi.add_property(self, 'channels[].scale',
                         self._get_channel_scale,
@@ -512,12 +482,12 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                 self._channel_name.append("digital%d" % i)
                 self._channel_label.append("D%d" % i)
                 self._digital_channel_name.append("digital%d" % i)
-            
+
             for i in range(self._analog_channel_count, self._channel_count):
                 self._channel_input_impedance[i] = 100000
                 self._channel_input_frequency_max[i] = 1e9
                 self._channel_probe_attenuation[i] = 1
-                self._channel_coupling[i] = 'dc'
+                self._channel_coupling[i] = 'D1M'
                 self._channel_offset[i] = 0
                 self._channel_range[i] = 1
         
@@ -600,36 +570,40 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._write(":timebase:position %e" % value)
         self._timebase_position = value
         self._set_cache_valid()
-        
+
+    # Modified for LeCroy
     def _get_timebase_range(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._timebase_range = float(self._ask(":TDIV?"))
-            self._timebase_scale = self._timebase_range / self._horizontal_divisions
+            self._timebase_scale = float(self._ask("TDIV?"))
+            self._timebase_range = self._timebase_scale * self._horizontal_divisions
             self._set_cache_valid()
             self._set_cache_valid(True, 'timebase_scale')
         return self._timebase_range
-    
+
+    # Modified for LeCroy
     def _set_timebase_range(self, value):
         value = float(value)
         if not self._driver_operation_simulate:
-            self._write(":TDIV %e" % value)
-        self._timebase_range = value
+            self._write("TDIV %e" % (value / self._horizontal_divisions))
         self._timebase_scale = value / self._horizontal_divisions
+        self._timebase_range = value
         self._set_cache_valid()
         self._set_cache_valid(True, 'timebase_scale')
-        
+
+    # Modified for LeCroy
     def _get_timebase_scale(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._timebase_scale = float(self._ask(":TDIV?"))
+            self._timebase_scale = float(self._ask("TDIV?"))
             self._timebase_range = self._timebase_scale * self._horizontal_divisions
             self._set_cache_valid()
             self._set_cache_valid(True, 'timebase_range')
         return self._timebase_scale
-    
+
+    # Modified for LeCroy
     def _set_timebase_scale(self, value):
         value = float(value)
         if not self._driver_operation_simulate:
-            self._write(":TDIV %e" % value)
+            self._write("TDIV %e" % value)
         self._timebase_scale = value
         self._timebase_range = value * self._horizontal_divisions
         self._set_cache_valid()
@@ -730,34 +704,40 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     def _set_acquisition_number_of_points_minimum(self, value):
         value = int(value)
         self._acquisition_number_of_points_minimum = value
-    
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    # is MSIZ correct here?
     def _get_acquisition_record_length(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._acquisition_record_length = int(self._ask(":waveform:points?"))
+            self._acquisition_record_length = int(float(self._ask("MSIZ?")))
             self._set_cache_valid()
         return self._acquisition_record_length
-    
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_acquisition_time_per_record(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._acquisition_time_per_record = float(self._ask(":timebase:range?"))
+            self._acquisition_time_per_record = float(self._ask("TDIV?")) * self._horizontal_divisions
             self._set_cache_valid()
         return self._acquisition_time_per_record
-    
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_acquisition_time_per_record(self, value):
         value = float(value)
         if not self._driver_operation_simulate:
-            self._write(":timebase:range %e" % value)
-        self._acquisition_time_per_record = value
+            self._write("TDIV %e" % (value / self._horizontal_divisions))
+        self._acquisition_time_per_record = value * self._horizontal_divisions
         self._set_cache_valid()
         self._set_cache_valid(False, 'acquisition_start_time')
-    
+
+    # This method implemented differently in WRXIA, not tested with other LeCroy scope
     def _get_channel_label(self, index):
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             self._channel_label[index] = self._ask(":%s:label?" % self._channel_name[index]).strip('"')
             self._set_cache_valid(index=index)
         return self._channel_label[index]
-    
+
+    # This method implemented differently in WRXIA, not tested with other LeCroy scope
     def _set_channel_label(self, index, value):
         value = str(value)
         index = ivi.get_index(self._channel_name, index)
@@ -765,43 +745,58 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._write(":%s:label \"%s\"" % (self._channel_name[index], value))
         self._channel_label[index] = value
         self._set_cache_valid(index=index)
-    
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_enabled(self, index):
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_enabled[index] = bool(int(self._ask(":%s:display?" % self._channel_name[index])))
+            trace = self._ask("%s:TRA?" % self._channel_name[index])
+            if trace == "ON":
+                self._channel_enabled[index] = True
+            elif trace == "OFF":
+                self._channel_enabled[index] = False
             self._set_cache_valid(index=index)
         return self._channel_enabled[index]
-    
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_enabled(self, index, value):
         value = bool(value)
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate:
-            self._write(":%s:display %d" % (self._channel_name[index], int(value)))
+            if value == False:
+                self._write("%s:TRA OFF" % self._channel_name[index])
+            elif value == True:
+                self._write("%s:TRA ON" % self._channel_name[index])
         self._channel_enabled[index] = value
         self._set_cache_valid(index=index)
-    
+
+    # Edited for LeCroy, NOT WORKING YET
     def _get_channel_input_impedance(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            val = float(self._ask(":%s:impedance?" % self._channel_name[index]))
-            if val == 'ONEM':
+            val = float(self._ask("%s:coupling?" % self._channel_name[index]))
+            if val == 'A1M':
                 self._channel_input_impedance[index] = 1000000
-            elif val == 'FIFT':
+                self._channel_input_coupling[index] = "AC"
+            elif val == "D1M":
+                self._channel_input_impedance[index] = 1000000
+                self._channel_input_coupling[index] = "DC"
+            elif val == 'D50':
                 self._channel_input_impedance[index] = 50
+                self._channel_input_coupling[index] = "DC"
+            elif val == 'GND':
+                self._channel_input_impedance[index] = 1000000
+                self._channel_input_coupling[index] = "GND"
             self._set_cache_valid(index=index)
-        return self._channel_input_impedance[index]
-    
+        return self._channel_input_impedance[index], self._channel_input_coupling[index]
+
+    # Edited for LeCroy, NOT WORKING YET
     def _set_channel_input_impedance(self, index, value):
-        value = float(value)
         index = ivi.get_index(self._analog_channel_name, index)
-        if value != 50 and value != 1000000:
+        if value not in VerticalCoupling:
             raise Exception('Invalid impedance selection')
         if not self._driver_operation_simulate:
-            if value == 1000000:
-                self._write(":%s:impedance onemeg" % self._channel_name[index])
-            elif value == 50:
-                self._write(":%s:impedance fifty" % self._channel_name[index])
+            self._write("{0}:coupling {1}".format(self._channel_name[index], value))
         self._channel_input_impedance[index] = value
         self._set_cache_valid(index=index)
     
@@ -813,7 +808,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         value = float(value)
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate:
-            self._set_channel_bw_limit(index, value < 25e6)
+            self._set_channel_bw_limit(index, value < 20e6)
         self._channel_input_frequency_max[index] = value
         self._set_cache_valid(index=index)
     
@@ -868,26 +863,30 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._channel_probe_id[index] = self._ask(":%s:probe:id?" % self._channel_name[index])
             self._set_cache_valid(index=index)
         return self._channel_probe_id[index]
-    
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_bw_limit(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_bw_limit[index] = bool(int(self._ask(":%s:bwlimit?" % self._channel_name[index])))
+            # Bandwidth limits are read out all at one time, need to split the list to get specified channel
+            limits = (self._ask("BWL?").strip()).split(',')
+            if self._channel_name[index] in limits:
+                self._channel_bw_limit[index] = limits[limits.index(self._channel_name[index]) + 1]
             self._set_cache_valid(index=index)
         return self._channel_bw_limit[index]
-    
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_bw_limit(self, index, value):
         index = ivi.get_index(self._analog_channel_name, index)
-        value = bool(value)
         if not self._driver_operation_simulate:
-            self._write(":%s:bwlimit %d" % (self._channel_name[index], int(value)))
+            self._write("BWL %s,%s" % (self._channel_name[index], value))
         self._channel_bw_limit[index] = value
         self._set_cache_valid(index=index)
     
     def _get_channel_coupling(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_enabled[index] = self._ask(":%s:coupling?" % self._channel_name[index]).lower()
+            self._channel_enabled[index] = self._ask("%s:coupling?" % self._channel_name[index]).lower()
             self._set_cache_valid(index=index)
         return self._channel_coupling[index]
     
@@ -1037,9 +1036,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     
     def _get_trigger_type(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:mode?").lower()
-            if value == 'edge':
-                src = self._ask(":trigger:source?").lower()
+            value = self._ask("TRMD?").lower()
+            if value == 'norm':
+                src = self._ask("TRSE?").lower()
                 if src == 'line':
                     value = 'ac_line'
             elif value == 'glit':
@@ -1058,7 +1057,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         if value not in TriggerTypeMapping:
             raise ivi.ValueNotSupportedException()
         if not self._driver_operation_simulate:
-            self._write(":trigger:mode %s" % TriggerTypeMapping[value])
+            self._write("TRMD %s" % TriggerTypeMapping[value])
             if value == 'ac_line':
                 self._write(":trigger:source line")
             if value == 'glitch':

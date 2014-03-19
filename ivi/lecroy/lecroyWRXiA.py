@@ -36,7 +36,6 @@ ScreenshotImageFormatMapping = {
         'psd': 'psd',
         'tiff': 'tiff'}
 
-
 class lecroyWRXIA(lecroyBaseScope):
     "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
 
@@ -47,30 +46,52 @@ class lecroyWRXIA(lecroyBaseScope):
 
         self._analog_channel_name = list()
         self._analog_channel_count = 4
-        # Commented out the following lines as I don't believe these scopes have any digital channel support
         self._digital_channel_name = list()
         self._digital_channel_count = 16
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 1e9
 
         self._identity_description = "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
-        self._identity_supported_instrument_models = ['WR204MXI-A', '204XiA', '104MXiA', '104XiA', '64MXiA', '64XiA',
-                                                      '62XiA', '44MXiA', '44XiA']
+        self._identity_supported_instrument_models = ['WR204MXI-A', 'WR204XI-A', 'WR104MXI-A', 'WR104XI-A', 'WR64MXI-A', 'WR64XI-A',
+                                                      'WR62XI-A', 'WR44MXI-A', 'WR44XI-A']
 
         # To use some advanced commands of the WRXIA series, we setup the XStreamDSO as "app" using the VBS command
-        self._write("VBS \"Set app = CreateObject(\"LeCroy.XStreamDSO\")\"")
+        #self._write("VBS \'app = CreateObject(\"LeCroy.XStreamDSO\")\'")
+        self._init_channels()
+        #self._channel_count = self._analog_channel_count + self._digital_channel_count
+        #self.channels._set_list(self._channel_name)
 
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_label(self, index):
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             self._channel_label[index] = self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index])).strip('"')
-            self._set_cache_valid(index=index)
+        self._set_cache_valid(index=index)
         return self._channel_label[index]
 
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_label(self, index, value):
         value = str(value)
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate:
-            self._write("VBS \"app.Acquisition.%s.LabelsText = \"%s\"\"" % (self._channel_name[index], value))
+            self._write("VBS \"app.Acquisition.%s.LabelsText = \"\"%s\"" % (self._channel_name[index], value))
+            self._write("VBS \"app.Acquisition.%s.ViewLabels = \"True" % self._channel_name[index])
         self._channel_label[index] = value
+        self._set_cache_valid(index=index)
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _get_channel_invert(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_invert[index] = bool(self._ask("VBS? \"Return=app.Acquisition.%s.Invert\"" % self._channel_name[index]))
+            self._set_cache_valid(index=index)
+        return self._channel_invert[index]
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _set_channel_invert(self, index, value):
+        index = ivi.get_index(self._analog_channel_name, index)
+        value = bool(value)
+        if not self._driver_operation_simulate:
+            self._write("VBS \"app.Acquisition.%s.Invert = %s\"" % (self._channel_name[index], value))
+        self._channel_invert[index] = value
         self._set_cache_valid(index=index)
