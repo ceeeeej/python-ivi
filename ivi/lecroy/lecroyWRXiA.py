@@ -54,6 +54,7 @@ class lecroyWRXIA(lecroyBaseScope):
         self._digital_channel_count = 16
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 1e9
+        self._display_labels = True
 
         self._identity_description = "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
         self._identity_supported_instrument_models = ['WR204MXI-A', 'WR204XI-A', 'WR104MXI-A', 'WR104XI-A', 'WR64MXI-A', 'WR64XI-A',
@@ -94,7 +95,8 @@ class lecroyWRXIA(lecroyBaseScope):
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate:
             self._write("VBS \"app.Acquisition.%s.LabelsText = \"\"%s\"" % (self._channel_name[index], value))
-            self._write("VBS \"app.Acquisition.%s.ViewLabels = True\"" % self._channel_name[index])
+            if self._display_labels == True:
+                self._write("VBS \"app.Acquisition.%s.ViewLabels = True\"" % self._channel_name[index])
         self._channel_label[index] = value
         self._set_cache_valid(index=index)
 

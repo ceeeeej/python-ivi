@@ -187,6 +187,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._timebase_window_range = 5e-6
         self._timebase_window_scale = 500e-9
         self._display_vectors = True
+        self._display_labels = True
         # TODO: Check default setting for GRID? and use as display_grid setting
         self._display_grid = "single"
         
@@ -900,7 +901,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._write(":%s:probe:skew %e" % (self._channel_name[index], value))
         self._channel_probe_skew[index] = value
         self._set_cache_valid(index=index)
-    
+
     def _get_channel_invert(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
