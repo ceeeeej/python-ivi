@@ -402,7 +402,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         if reset:
             self.utility.reset()
 
-    # TODO: test
+    # Modified for LeCroy, working
     def _load_id_string(self):
         if self._driver_operation_simulate:
             self._identity_instrument_manufacturer = "Not available while simulating"
@@ -416,19 +416,16 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._set_cache_valid(True, 'identity_instrument_manufacturer')
             self._set_cache_valid(True, 'identity_instrument_model')
             self._set_cache_valid(True, 'identity_instrument_firmware_revision')
-    # TODO: test insturment manufacturer
     def _get_identity_instrument_manufacturer(self):
         if self._get_cache_valid():
             return self._identity_instrument_manufacturer
         self._load_id_string()
         return self._identity_instrument_manufacturer
-    # TODO: test instrument model
     def _get_identity_instrument_model(self):
         if self._get_cache_valid():
             return self._identity_instrument_model
         self._load_id_string()
         return self._identity_instrument_model
-    # TODO: test instrument firmware version
     def _get_identity_instrument_firmware_revision(self):
         if self._get_cache_valid():
             return self._identity_instrument_firmware_revision
@@ -485,6 +482,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._channel_invert = list()
         self._channel_probe_id = list()
         self._channel_bw_limit = list()
+        self._channel_input_impedance = list()
         
         self._analog_channel_name = list()
         for i in range(self._analog_channel_count):
@@ -505,7 +503,6 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                 self._digital_channel_name.append("digital%d" % i)
 
             for i in range(self._analog_channel_count, self._channel_count):
-                self._channel_input_impedance[i] = 1000000
                 self._channel_input_frequency_max[i] = 1e9
                 self._channel_probe_attenuation[i] = 1
                 self._channel_coupling[i] = 'D1M'
@@ -537,7 +534,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
         if not self._driver_operation_simulate:
             self._write("MESSAGE \"%s\"" % string)
-    # TODO: test fetch_screenshot
+    # Modified for LeCroy, working
     def _display_fetch_screenshot(self, format='png', invert=True):
         if self._driver_operation_simulate:
             return b''
@@ -553,8 +550,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             color = "WHITE"
         self._write("HCSU DEV,%s,FORMAT,PORTRAIT,BCKG,%s,DEST,\"REMOTE\",PORT,\"NET\",AREA,GRIDAREAONLY" % (str(format), color))
         self._write("SCDP")
-        # TODO: try return self._read_raw() if ieee block does not work
-        return self._read_ieee_block()
+        return self._read_raw()
 
     # TODO: determine how to handle all :timebase: methods for LeCroy
     def _get_timebase_mode(self):
@@ -697,16 +693,16 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._write(":display:vectors %d" % int(value))
         self._display_vectors = value
         self._set_cache_valid()
-    # TODO: test get_grid_mode, added for LeCroy scope
+    # Modified for LeCroy, working
     def _get_grid_mode(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
             self._display_vectors = str(self._ask("GRID?"))
             self._set_cache_valid()
         return self._display_vectors
-    # TODO: test get_grid_mode, added for LeCroy scope
+    # Modified for LeCroy, working
     def _set_grid_mode(self, value):
         if not self._driver_operation_simulate:
-            self._write("GRID %d" % str(value))
+            self._write("GRID %s" % str(value))
         self._display_vectors = str(value)
         self._set_cache_valid()
 
@@ -942,20 +938,35 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._write("BWL %s,%s" % (self._channel_name[index], value))
         self._channel_bw_limit[index] = value
         self._set_cache_valid(index=index)
-    
+    # TODO: FIX COUPLING AND IMPEDANCE
     def _get_channel_coupling(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             self._channel_enabled[index] = self._ask("%s:coupling?" % self._channel_name[index]).lower()
             self._set_cache_valid(index=index)
         return self._channel_coupling[index]
-    
+    # TODO: FIX COUPLING AND IMPEDANCE
     def _set_channel_coupling(self, index, value):
         index = ivi.get_index(self._analog_channel_name, index)
         if value not in VerticalCoupling:
             raise ivi.ValueNotSupportedException()
+        # Check current impedance setting to know if 1M, 50, or GND
+        result = str(self._ask("%s:coupling?" % self._channel_name[index]))
+        if result[1:3] == "1M" and value == "ac":
+            coupling = "A1M"
+        elif result[1:3] == "50" and value == "ac":
+            raise Exception('Invalid coupling selection, set correct impedance')
+        elif result[1:3] == "1M" and value == "dc":
+            coupling = "D1M"
+        elif result[1:3] == "50" and value == "dc":
+            coupling = "D50"
+        elif result == "GND":
+            if value == "dc":
+                coupling = "D1M"
+            elif value == "ac":
+                coupling = "A1M"
         if not self._driver_operation_simulate:
-            self._write(":%s:coupling %s" % (self._channel_name[index], value))
+            self._write("%s:coupling %s" % (self._channel_name[index], coupling))
         self._channel_coupling[index] = value
         self._set_cache_valid(index=index)
     
