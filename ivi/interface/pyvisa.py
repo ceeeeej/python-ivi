@@ -2,7 +2,7 @@
 
 Python Interchangeable Virtual Instrument Library
 
-Copyright (c) 2012-2014 Alex Forencich
+Copyright (c) 2014 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,25 +24,37 @@ THE SOFTWARE.
 
 """
 
-import Gpib
+import visa
+import io
 
-class LinuxGpibInstrument:
-    "Linux GPIB wrapper instrument interface client"
-    def __init__(self, name = 'gpib0', pad = None, sad = 0, timeout = 13, send_eoi = 1, eos_mode = 0):
-        self.gpib = Gpib.Gpib(name, pad, sad, timeout, send_eoi, eos_mode)
+class PyVisaInstrument:
+    "PyVisa wrapper instrument interface client"
+    def __init__(self, resource, *args, **kwargs):
+        if type(resource) is str:
+            self.instrument = visa.instrument(resource, *args, **kwargs)
+        else:
+            self.instrument = resource
+        
+        self.buffer = io.BytesIO()
 
     def write_raw(self, data):
         "Write binary data to instrument"
         
-        self.gpib.write(data)
+        self.instrument.write(data)
 
     def read_raw(self, num=-1):
         "Read binary data from instrument"
         
-        if num < 0:
-            num = 512
+        # PyVISA only supports reading entire buffer
+        #return self.instrument.read_raw()
         
-        return self.gpib.read(num)
+        data = self.buffer.read(num)
+        
+        if len(data) == 0:
+            self.buffer = io.BytesIO(self.instrument.read_raw())
+            data = self.buffer.read(num)
+        
+        return data
     
     def ask_raw(self, data, num=-1):
         "Write then read binary data"
@@ -56,7 +68,7 @@ class LinuxGpibInstrument:
             for message_i in message:
                 self.write(message_i, encoding)
             return
-
+        
         self.write_raw(str(message).encode(encoding))
 
     def read(self, num=-1, encoding = 'utf-8'):
@@ -71,7 +83,7 @@ class LinuxGpibInstrument:
             for message_i in message:
                 val.append(self.ask(message_i, num, encoding))
             return val
-
+        
         self.write(message, encoding)
         return self.read(num, encoding)
     
@@ -82,12 +94,11 @@ class LinuxGpibInstrument:
     def trigger(self):
         "Send trigger command"
         
-        self.gpib.trigger()
+        self.instrument.trigger()
     
     def clear(self):
         "Send clear command"
-        
-        self.gpib.clear()
+        raise NotImplementedError()
     
     def remote(self):
         "Send remote command"

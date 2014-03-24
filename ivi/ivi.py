@@ -56,6 +56,24 @@ try:
 except ImportError:
     pass
 
+# pyvisa wrapper for PyVISA library support
+try:
+    from .interface import pyvisa
+except ImportError:
+    pass
+
+# set to True to try loading PyVISA first before
+# other interface libraries
+_prefer_pyvisa = False
+
+def get_prefer_pyvisa():
+    global _prefer_pyvisa
+    return _prefer_pyvisa
+
+def set_prefer_pyvisa(value):
+    global _prefer_pyvisa
+    _prefer_pyvisa = bool(value)
+
 class X(object):
     def __init__(self,_d={},**kwargs):
         kwargs.update(_d)
@@ -1419,7 +1437,7 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
         # process out args for initialize
         kw = {}
         for k in ('range_check', 'query_instr_status', 'cache', 'simulate', 'record_coercions',
-                'interchange_check', 'driver_setup'):
+                'interchange_check', 'driver_setup', 'prefer_pyvisa'):
             if k in kwargs:
                 kw[k] = kwargs.pop(k)
         
@@ -1503,7 +1521,11 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                             'TCPIP0::10.0.0.1::INSTR'
                             'TCPIP::10.0.0.1::gpib,5::INSTR'
                             'TCPIP0::10.0.0.1::gpib,5::INSTR'
+                            'TCPIP0::10.0.0.1::usb0::INSTR'
+                            'TCPIP0::10.0.0.1::usb0[1234::5678::MYSERIAL::0]::INSTR'
+                            'USB::1234::5678::INSTR'
                             'USB::1234::5678::SERIAL::INSTR'
+                            'USB0::0x1234::0x5678::INSTR'
                             'USB0::0x1234::0x5678::SERIAL::INSTR'
                             'GPIB::10::INSTR'
                             'GPIB0::10::INSTR'
@@ -1549,6 +1571,8 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                         | Interchange Check       | False                | interchange_check   |
                         +-------------------------+----------------------+---------------------+
                         | Driver Setup            | ''                   | driver_setup        |
+                        +-------------------------+----------------------+---------------------+
+                        | Prefer PyVISA           | False                | prefer_pyvisa       |
                         +-------------------------+----------------------+---------------------+
                         
                         Each IVI specific driver defines it own meaning and valid values for the
@@ -1598,8 +1622,13 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                         * May deallocate internal resources used by the IVI session.
                         """
         
+        # inherit prefer_pyvisa from global setting
+        self._prefer_pyvisa = _prefer_pyvisa
+        
         # call initialize if resource string or other args present
+        self._initialized_from_constructor = False
         if resource is not None or len(kw) > 0:
+            self._initialized_from_constructor = True
             self.initialize(resource, id_query, reset, **kw)
     
     def initialize(self, resource = None, id_query = False, reset = False, **keywargs):
@@ -1622,6 +1651,8 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                 self._driver_operation_interchange_check = bool(val)
             elif op == 'driver_setup':
                 self._driver_operation_driver_setup = val
+            elif op == 'prefer_pyvisa':
+                self._prefer_pyvisa = bool(val)
             else:
                 raise UnknownOptionException('Invalid option')
         
@@ -1651,7 +1682,11 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             # ASRL::/dev/ttyUSB0,9600,8n1::INSTR
             m = re.match('^(?P<prefix>(?P<type>TCPIP|USB|GPIB|ASRL)\d*)(::(?P<arg1>[^\s:]+))?(::(?P<arg2>[^\s:]+(\[.+\])?))?(::(?P<arg3>[^\s:]+))?(::(?P<suffix>INSTR))$', resource, re.I)
             if m is None:
-                raise IOException('Invalid resource string')
+                if 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
+                else:
+                    raise IOException('Invalid resource string')
             
             res_type = m.group('type').upper()
             res_prefix = m.group('prefix')
@@ -1662,15 +1697,28 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
 
             if res_type == 'TCPIP':
                 # TCP connection
-                if 'vxi11' in globals():
+                if self._prefer_pyvisa and 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
+                elif 'vxi11' in globals():
                     # connect with VXI-11
                     self._interface = vxi11.Instrument(resource)
+                elif 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
                 else:
                     raise IOException('Cannot use resource type %s' % res_type)
             elif res_type == 'USB':
                 # USB connection
-                if 'usbtmc' in globals():
+                if self._prefer_pyvisa and 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
+                elif 'usbtmc' in globals():
+                    # connect with USBTMC
                     self._interface = usbtmc.Instrument(resource)
+                elif 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
                 else:
                     raise IOException('Cannot use resource type %s' % res_type)
             elif res_type == 'GPIB':
@@ -1683,9 +1731,15 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                 
                 addr = int(res_arg1)
                 
-                if 'linuxgpib' in globals():
+                if self._prefer_pyvisa and 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
+                elif 'linuxgpib' in globals():
                     # connect with linux-gpib
                     self._interface = linuxgpib.LinuxGpibInstrument(index, addr)
+                elif 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
                 else:
                     raise IOException('Cannot use resource type %s' % res_type)
             elif res_type == 'ASRL':
@@ -1706,21 +1760,34 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                     if len(t) > 1:
                        baudrate = int(t[1])
                 
-                if 'pyserial' in globals():
+                if self._prefer_pyvisa and 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
+                elif 'pyserial' in globals():
+                    # connect with PySerial
                     self._interface = pyserial.SerialInstrument(port,baudrate=baudrate)
+                elif 'pyvisa' in globals():
+                    # connect with PyVISA
+                    self._interface = pyvisa.PyVisaInstrument(resource)
                 else:
                     raise IOException('Cannot use resource type %s' % res_type)
                 
+            elif 'pyvisa' in globals():
+                # connect with PyVISA
+                self._interface = pyvisa.PyVisaInstrument(resource)
             else:
                 raise IOException('Unknown resource type %s' % res_type)
             
             _driver_operation_io_resource_descriptor = resource
             
-        elif 'vxi11' in globals() and type(resource) == vxi11.Instrument:
+        elif 'vxi11' in globals() and resource.__class__ == vxi11.Instrument:
             # Got a vxi11 instrument, can use it as is
             self._interface = resource
-        elif 'usbtmc' in globals() and type(resource) == usbtmc.Instrument:
+        elif 'usbtmc' in globals() and resource.__class__ == usbtmc.Instrument:
             # Got a usbtmc instrument, can use it as is
+            self._interface = resource
+        elif set(['read_raw', 'write_raw']).issubset(set(resource.__class__.__dict__)):
+            # has read_raw and write_raw, so should be a usable interface
             self._interface = resource
         else:
             # don't have a usable resource
@@ -1810,7 +1877,12 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             return b''
         if not self._initialized or self._interface is None:
             raise NotInitializedException()
-        return self._interface.ask_raw(data, num)
+        try:
+            return self._interface.ask_raw(data, num)
+        except AttributeError:
+            # if interface does not implement ask_raw, emulate it
+            self._write_raw(data)
+            return self._read_raw(num)
     
     def _write(self, data, encoding = 'utf-8'):
         "Write string to instrument"
@@ -1819,7 +1891,16 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             return
         if not self._initialized or self._interface is None:
             raise NotInitializedException()
-        self._interface.write(data, encoding)
+        try:
+            self._interface.write(data, encoding)
+        except AttributeError:
+            if type(data) is tuple or type(data) is list:
+                # recursive call for a list of commands
+                for data_i in data:
+                    self._write(data_i, encoding)
+                return
+
+            self._write_raw(str(data).encode(encoding))
     
     def _read(self, num=-1, encoding = 'utf-8'):
         "Read string from instrument"
@@ -1828,7 +1909,10 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             return ''
         if not self._initialized or self._interface is None:
             raise NotInitializedException()
-        return self._interface.read(num, encoding)
+        try:
+            return self._interface.read(num, encoding)
+        except AttributeError:
+            return self._read_raw(num).decode(encoding).rstrip('\r\n')
     
     def _ask(self, data, num=-1, encoding = 'utf-8'):
         "Write then read string"
@@ -1837,7 +1921,19 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             return ''
         if not self._initialized or self._interface is None:
             raise NotInitializedException()
-        return self._interface.ask(data, num, encoding)
+        try:
+            return self._interface.ask(data, num, encoding)
+        except AttributeError:
+            # if interface does not implement ask, emulate it
+            if type(data) is tuple or type(data) is list:
+            #    # recursive call for a list of commands
+                val = list()
+                for data_i in data:
+                    val.append(self._ask(data_i, num, encoding))
+                return val
+
+            self._write(data, encoding)
+            return self._read(num, encoding)
     
     def _read_stb(self):
         "Read status byte"
@@ -1846,7 +1942,10 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             return 0
         if not self._initialized or self._interface is None:
             raise NotInitializedException()
-        return self._interface.read_stb()
+        try:
+            return self._interface.read_stb()
+        except (AttributeError, NotImplementedError):
+            return int(self._ask("*STB?"))
     
     def _trigger(self):
         "Device trigger"
@@ -1854,7 +1953,10 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             print("[simulating] Trigger")
         if not self._initialized or self._interface is None:
             raise NotInitializedException()
-        return self._interface.trigger()
+        try:
+            self._interface.trigger()
+        except (AttributeError, NotImplementedError):
+            self._write("*TRG")
     
     def _clear(self):
         "Device clear"
@@ -1862,7 +1964,10 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
             print("[simulating] Clear")
         if not self._initialized or self._interface is None:
             raise NotInitializedException()
-        return self._interface.clear()
+        try:
+            return self._interface.clear()
+        except (AttributeError, NotImplementedError):
+            self._write("*CLS")
     
     def _remote(self):
         "Device set remote"
