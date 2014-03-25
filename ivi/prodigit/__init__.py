@@ -2,7 +2,7 @@
 
 Python Interchangeable Virtual Instrument Library
 
-Copyright (c) 2012-2014 Alex Forencich
+Copyright (c) 2012 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,17 +24,10 @@ THE SOFTWARE.
 
 """
 
-__all__ = [
-        # Base IVI class
-        "ivi",
-        # IVI abstract classes
-        "scope", "dmm", "fgen", "dcpwr", "swtch", "pwrmeter", "specan",
-        "rfsiggen", "counter",
-        # Generic IVI drivers
-        "scpi",
-        # IVI drivers
-        "agilent", "chroma", "dicon", "colby", "jdsu", "lecroy", "prodigit", "rigol", "tektronix"]
-
-from .ivi import *
-from . import *
-
+# Prodigit
+# DC Electronic Loads
+from .prodigit3310C import prodigit3310C
+from .prodigit3311C import prodigit3311C
+#from .prodigit3312C import prodigit3312C
+#from .prodigit3314C import prodigit3314C
+#from .prodigit3315C import prodigit3315C

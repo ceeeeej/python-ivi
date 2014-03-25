@@ -175,6 +175,9 @@ from .agilent34401A import agilent34401A
 from .agilent34410A import agilent34410A
 from .agilent34411A import agilent34411A
 
+#Digital Multimeters + DC Power Supplies
+from .agilentU3606A import agilentU3606A
+
 # DC Power Supplies
 # 603xA
 from .agilent6030A import agilent6030A
