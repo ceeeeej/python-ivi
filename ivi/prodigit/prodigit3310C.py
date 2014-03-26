@@ -25,8 +25,9 @@ THE SOFTWARE.
 """
 
 from .. import ivi
-from .. import dcpwr
+from .. import dcload
 from .. import scpi
+from .prodigitBaseLoad import *
 
 TrackingType = set(['floating'])
 TriggerSourceMapping = {

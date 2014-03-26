@@ -24,40 +24,45 @@ THE SOFTWARE.
 
 """
 
-import time
-import struct
-
 from .. import ivi
-from .. import dcload
-#from .. import scpi
+from .. import dcpwr
+from .. import scpi
 
 TrackingType = set(['floating'])
 TriggerSourceMapping = {
         'immediate': 'imm',
         'bus': 'bus'}
-MeasurementType = set(['current', 'voltage'])
 
-class prodigitBaseLoad(dcload.Base):
-    "Prodigit series IVI DC electronic load driver"
+class gwinstekPST3202(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigger,
+                scpi.dcpwr.Measurement):
+    "GW Instek PST-3202 series IVI DC power supply driver"
 
     def __init__(self, *args, **kwargs):
-        self.__dict__.setdefault('_instrument_id', '3310C')
+        self.__dict__.setdefault('_instrument_id', 'PST-3202')
 
         # don't do standard SCPI init routine
         self._do_scpi_init = False
 
-        super(prodigitBaseLoad, self).__init__(*args, **kwargs)
+        super(prodigit3311C, self).__init__(*args, **kwargs)
 
-        self._input_count = 1
+        self._output_count = 3
 
-        self._input_spec = [
+        self._output_spec = [
             {
                 'range': {
-                    'P60V': (61.0, 60.0)
+                    'P32V': (33.0, 2.0)
                 },
-                'ovp_max': 61.0,
-                'voltage_max': 60.0,
-                'current_max': 60.0
+                'ovp_max': 33.0,
+                'voltage_max': 32.0,
+                'current_max': 2.0
+            },
+            {
+                'range': {
+                    'P6V': (7.0, 5.0)
+                },
+                'ovp_max': 7.0,
+                'voltage_max': 6.0,
+                'current_max': 5.0
             }
         ]
 
@@ -69,32 +74,23 @@ class prodigitBaseLoad(dcload.Base):
         self._couple_tracking_type = 'floating'
         self._couple_trigger = False
 
-        self._identity_description = "Prodigit DC electronic load driver"
+        self._identity_description = "GW Instek PST-3202 series IVI DC power supply driver"
         self._identity_identifier = ""
         self._identity_revision = ""
         self._identity_vendor = ""
-        self._identity_instrument_manufacturer = "Prodigit"
+        self._identity_instrument_manufacturer = "GW Instek"
         self._identity_instrument_model = ""
         self._identity_instrument_firmware_revision = ""
         self._identity_specification_major_version = 3
         self._identity_specification_minor_version = 0
-        self._identity_supported_instrument_models = ['3310C', '3311C', '3312C', '3314C', '3315C']
-
-        ivi.add_property(self, 'inputs.dynamic',
-                        self._get_input_dynamic,
-                        self._set_input_dynamic)
-
-        ivi.add_method(self, 'memory.save',
-                        self._memory_save)
-        ivi.add_method(self, 'memory.recall',
-                        self._memory_recall)
+        self._identity_supported_instrument_models = ['PST-3202']
 
         self._init_outputs()
 
     def initialize(self, resource = None, id_query = False, reset = False, **keywargs):
         "Opens an I/O session to the instrument."
 
-        super(prodigitBaseLoad, self).initialize(resource, id_query, reset, **keywargs)
+        super(gwinstekPST3202, self).initialize(resource, id_query, reset, **keywargs)
 
         # configure interface
         if self._interface is not None:
@@ -117,4 +113,3 @@ class prodigitBaseLoad(dcload.Base):
         # reset
         if reset:
             self.utility_reset()
-
