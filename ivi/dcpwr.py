@@ -286,6 +286,7 @@ class Base(object):
         self._output_ovp_enabled = list()
         self._output_ovp_limit = list()
         self._output_voltage_level = list()
+        self._output_voltage_max = list()
         for i in range(self._output_count):
             self._output_name.append("output%d" % (i+1))
             self._output_current_limit.append(0)
@@ -294,6 +295,7 @@ class Base(object):
             self._output_ovp_enabled.append(True)
             self._output_ovp_limit.append(0)
             self._output_voltage_level.append(0)
+            self._output_voltage_max.append(0)
         
         self.outputs._set_list(self._output_name)
     
