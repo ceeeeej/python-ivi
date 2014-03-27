@@ -166,7 +166,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
         super(lecroyBaseScope, self).__init__(*args, **kwargs)
         
-        self._memory_size = 10
+        self._memory_size = 5
         
         self._analog_channel_name = list()
         self._analog_channel_count = 4
@@ -1498,14 +1498,14 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     def _measurement_auto_setup(self):
         if not self._driver_operation_simulate:
             self._write(":autoscale")
-    
+    #TODO: test
     def _memory_save(self, index):
         index = int(index)
         if index < 0 or index > self._memory_size:
             raise OutOfRangeException()
         if not self._driver_operation_simulate:
             self._write("*sav %d" % index)
-    
+    #TODO: test
     def _memory_recall(self, index):
         index = int(index)
         if index < 0 or index > self._memory_size:

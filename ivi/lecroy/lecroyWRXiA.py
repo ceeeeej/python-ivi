@@ -39,6 +39,15 @@ ScreenshotImageFormatMapping = {
         'png24': 'png',
         'psd': 'psd',
         'tiff': 'tiff'}
+NoiseFilterMapping = {
+        0.0: 'None',
+        0.5: '0.5bits',
+        1.0: '1.0bits',
+        1.5: '1.5bits',
+        2.0: '2.0bits',
+        2.5: '2.5bits',
+        3.0: '3.0bits',
+        }
 
 class lecroyWRXIA(lecroyBaseScope):
     "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
@@ -55,6 +64,9 @@ class lecroyWRXIA(lecroyBaseScope):
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._bandwidth = 1e9
         self._display_labels = True
+        self._channel_noise_filter = list()
+
+        self._memory_size = 5
 
         self._identity_description = "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
         self._identity_supported_instrument_models = ['WR204MXI-A', 'WR204XI-A', 'WR104MXI-A', 'WR104XI-A', 'WR64MXI-A', 'WR64XI-A',
@@ -65,16 +77,16 @@ class lecroyWRXIA(lecroyBaseScope):
                         self._set_channel_noise_filter,
                         None,
                         ivi.Doc("""
-                        Specifies the channel enhanced noise filter. Set to 'None' to turn off the filter.
+                        Specifies the channel enhanced noise filter bit setting. Set to 0 to turn off the filter.
 
                         Values:
-                        * 'None'
-                        * '0.5bits'
-                        * '1.0bits'
-                        * '1.5bits'
-                        * '2.0bits'
-                        * '2.5bits'
-                        * '3.bits'
+                        * 0.0: 'None'
+                        * 0.5: '0.5bits'
+                        * 1.0: '1.0bits'
+                        * 1.5: '1.5bits'
+                        * 2.0: '2.0bits'
+                        * 2.5: '2.5bits'
+                        * 3.0: '3.bits'
                         """))
 
         self._init_channels()
@@ -123,12 +135,16 @@ class lecroyWRXIA(lecroyBaseScope):
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             self._channel_noise_filter[index] = self._ask("VBS? \"Return=app.Acquisition.%s.EnhanceResType\"" % (self._channel_name[index]))
             self._set_cache_valid(index=index)
-        return self._channel_invert[index]
+        return self._channel_noise_filter[index]
     # TODO: test channel_noise_filter
-    def _set_channel_noise_filter(self, index, value):
+    def _set_channel_noise_filter(self, index, filter):
         index = ivi.get_index(self._analog_channel_name, index)
-        value = bool(value)
+        filter = NoiseFilterMapping[filter]
         if not self._driver_operation_simulate:
-            self._write("VBS \"app.Acquisition.%s.EnhanceResType = \"\"%s\"" % (self._channel_name[index], value))
-        self._channel_noise_filter[index] = value
+            self._write("VBS \"app.Acquisition.%s.EnhanceResType = \"\"%s\"" % (self._channel_name[index], str(filter)))
+        self._channel_noise_filter[index] = filter
         self._set_cache_valid(index=index)
+    #TODO: test
+    def _measurement_auto_setup(self):
+        if not self._driver_operation_simulate:
+            self._write("VBS \"app.AutoSetup\"")
