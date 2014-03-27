@@ -26,43 +26,43 @@ THE SOFTWARE.
 
 from .gwinstekPST import *
 
-class gwinstekPST3202(gwinstekPST):
-    "GW Instek PST-3202 series IVI DC power supply driver"
+class gwinstekPST3201(gwinstekPST):
+    "GW Instek PST-3201 series IVI DC power supply driver"
 
     def __init__(self, *args, **kwargs):
-        self.__dict__.setdefault('_instrument_id', 'PST-3202')
+        self.__dict__.setdefault('_instrument_id', 'PST-3201')
 
         # don't do standard SCPI init routine
         self._do_scpi_init = False
 
-        super(gwinstekPST3202, self).__init__(*args, **kwargs)
+        super(gwinstekPST3201, self).__init__(*args, **kwargs)
 
         self._output_count = 3
 
         self._output_spec = [
             {
                 'range': {
-                    'P32V': (33.0, 2.0)
+                    'P32V': (33.0, 1.0)
                 },
                 'ovp_max': 33.0,
                 'voltage_max': 32.0,
-                'current_max': 2.0
+                'current_max': 1.0
             },
             {
                 'range': {
-                    'P32V': (33.0, 2.0)
+                    'P32V': (33.0, 1.0)
                 },
                 'ovp_max': 33.0,
                 'voltage_max': 32.0,
-                'current_max': 2.0
+                'current_max': 1.0
             },
             {
                 'range': {
-                    'P6V': (7.0, 5.0)
+                    'P32V': (33.0, 1.0)
                 },
-                'ovp_max': 7.0,
-                'voltage_max': 6.0,
-                'current_max': 5.0
+                'ovp_max': 33.0,
+                'voltage_max': 32.0,
+                'current_max': 1.0
             }
         ]
 

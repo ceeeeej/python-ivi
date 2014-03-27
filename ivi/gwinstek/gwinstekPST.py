@@ -25,13 +25,16 @@ THE SOFTWARE.
 """
 
 from .. import ivi
-from .. import dcpwr
 from .. import scpi
 
-TrackingType = set(['floating'])
-TriggerSourceMapping = {
-        'immediate': 'imm',
-        'bus': 'bus'}
+TrackingType = set(['independent', 0, 'parallel', 1, 'series', 2])
+TrackingTypeMapping = {
+        'independent': 0,
+        'parallel': 1,
+        'series': 2,
+        0: 'independent',
+        1: 'parallel',
+        2: 'series'}
 
 class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigger,
                 scpi.dcpwr.Measurement):
@@ -83,29 +86,15 @@ class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigge
         self._identity_instrument_firmware_revision = ""
         self._identity_specification_major_version = 3
         self._identity_specification_minor_version = 0
-        self._identity_supported_instrument_models = ['PST-3202']
+        self._identity_supported_instrument_models = ['PST-3201', 'PST-3202']
 
-        ivi.add_property(self, 'outputs.trigger_delay',
-                        self._get_output_trigger_delay,
-                        self._set_output_trigger_delay)
-        ivi.add_property(self, 'couple.trigger',
-                        self._get_couple_trigger,
-                        self._set_couple_trigger)
-        ivi.add_property(self, 'couple.tracking.enabled',
-                        self._get_couple_tracking_enabled,
-                        self._set_couple_tracking_enabled)
         ivi.add_property(self, 'couple.tracking.type',
                         self._get_couple_tracking_type,
                         self._set_couple_tracking_type)
-
         ivi.add_method(self, 'memory.save',
                         self._memory_save)
         ivi.add_method(self, 'memory.recall',
                         self._memory_recall)
-        ivi.add_method(self, 'memory.set_name',
-                        self._set_memory_name)
-        ivi.add_method(self, 'memory.get_name',
-                        self._get_memory_name)
 
         self._init_outputs()
 
@@ -130,43 +119,186 @@ class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigge
         if reset:
             self.utility_reset()
 
-    def _get_couple_tracking_enabled(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":output:track:state?").lower()
-            self._couple_tracking_enabled = (value1 == 'on')
-            self._set_cache_valid()
-        return self._couple_tracking_enabled
+    def _init_outputs(self):
+        try:
+            super(gwinstekPST, self)._init_outputs()
+        except AttributeError:
+            pass
 
-    def _set_couple_tracking_enabled(self, value):
-        value = bool(value)
+        self._output_name = list()
+        self._output_current_limit = list()
+        self._output_current_limit_behavior = list()
+        self._output_enabled = list()
+        self._output_ovp_enabled = list()
+        self._output_ovp_limit = list()
+        self._output_voltage_level = list()
+        self._output_voltage_max = list()
+        for i in range(self._output_count):
+            self._output_name.append("output%d" % (i+1))
+            self._output_current_limit.append(self._output_spec[i-1]['current_max'])
+            #self._output_current_limit.append(0)
+            self._output_current_limit_behavior.append('regulate')
+            self._output_enabled.append(False)
+            self._output_ovp_enabled.append(True)
+            self._output_ovp_limit.append(self._output_spec[i-1]['ovp_max'])
+            #self._output_ovp_limit.append(0)
+            self._output_voltage_level.append(0)
+            self._output_voltage_max.append(self._output_spec[i-1]['voltage_max'])
+            #self._output_voltage_max.append(0)
+
+        self.outputs._set_list(self._output_name)
+
+    def _get_output_current_limit(self, index):
+        index = ivi.get_index(self._output_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._output_current_limit[index] = float(self._ask(":channel%s:current ?" % (index+1)))
+            self._set_cache_valid(index=index)
+        return self._output_current_limit[index]
+
+    def _set_output_current_limit(self, index, value):
+        index = ivi.get_index(self._output_name, index)
+        value = float(value)
+        if value < 0 or value > self._output_spec[index]['current_max']:
+            raise ivi.OutOfRangeException()
         if not self._driver_operation_simulate:
-            self._write(":output:track:state %s" % ('off', 'on')[value])
-        self._couple_tracking_enabled = value
-        self._set_cache_valid()
+            self._write(":channel%s:current %f" % (index+1, value))
+        self._output_current_limit[index] = value
+        self._set_cache_valid(index=index)
 
+    #TODO: test
+    def _get_output_current_limit_behavior(self, index):
+        index = ivi.get_index(self._output_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            value = bool(self._ask(":channel%s:protection:current ?"))
+            if value:
+                self._output_current_limit_behavior[index] = 'trip'
+            else:
+                self._output_current_limit_behavior[index] = 'regulate'
+            self._set_cache_valid(index=index)
+        return self._output_current_limit_behavior[index]
+
+    #TODO: test
+    def _set_output_current_limit_behavior(self, index, value):
+        index = ivi.get_index(self._output_name, index)
+        if value not in dcpwr.CurrentLimitBehavior:
+            raise ivi.ValueNotSupportedException()
+        if not self._driver_operation_simulate:
+            self._write(":channel%s:protection:current %d" % (index+1, int(bool(value))))
+        self._output_current_limit_behavior[index] = value
+        for k in range(self._output_count):
+            self._set_cache_valid(valid=False,index=k)
+        self._set_cache_valid(index=index)
+
+    #TODO: test
+    def _get_output_enabled(self, index):
+        """
+        On the GW Instek PST series this function will return the status of all outputs!
+        """
+        index = ivi.get_index(self._output_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._output_enabled[index] = bool(int(self._ask(":output:state ?")))
+            self._set_cache_valid(index=index)
+        return self._output_enabled[index]
+
+    #TODO: test
+    def _set_output_enabled(self, index, value):
+        """
+        On the GW Instek PST series this function will turn on all of the outputs!
+        """
+        index = ivi.get_index(self._output_name, index)
+        #value = bool(value)
+        if not self._driver_operation_simulate:
+            self._write(":output:state %d" % int(value))
+        self._output_enabled[index] = value
+        for k in range(self._output_count):
+            self._set_cache_valid(valid=False,index=k)
+        self._set_cache_valid(index=index)
+
+    #TODO: test
+    def _get_output_ovp_limit(self, index):
+        index = ivi.get_index(self._output_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._output_ovp_limit[index] = float(self._ask(":channel%s:protection:voltage ?" % (index+1))
+            self._set_cache_valid(index=index)
+        return self._output_ovp_limit[index]
+
+    #TODO: test
+    def _set_output_ovp_limit(self, index, value):
+        index = ivi.get_index(self._output_name, index)
+        value = float(value)
+        if value < 0 or value > self._output_spec[index]['ovp_max']:
+            raise ivi.OutOfRangeException()
+        if not self._driver_operation_simulate:
+            self._write(":channel%s:protection:voltage %f" % (index+1, value))
+        self._output_ovp_limit[index] = value
+        self._set_cache_valid(index=index)
+
+    #TODO: test
+    def _get_output_voltage_level(self, index):
+        index = ivi.get_index(self._output_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._output_voltage_level[index] = float(self._ask(":channel%s:voltage ?" % (index+1)))
+            self._set_cache_valid(index=index)
+        return self._output_voltage_level[index]
+
+    #TODO: test
+    def _set_output_voltage_level(self, index, value):
+        index = ivi.get_index(self._output_name, index)
+        value = float(value)
+        if value < 0 or value > self._output_voltage_max[index]:
+            raise ivi.OutOfRangeException()
+        if not self._driver_operation_simulate:
+            self._write(":channel%s:voltage %f" % (index+1, value))
+        self._output_voltage_level[index] = value
+        self._set_cache_valid(index=index)
+
+    #TODO: check if this is correct (voltage and current swapped?)
+    def _output_query_current_limit_max(self, index, voltage_level):
+        index = ivi.get_index(self._output_name, index)
+        if voltage_level < 0 or voltage_level > self._output_spec[index]['voltage_max']:
+            raise ivi.OutOfRangeException()
+        return self._output_spec[index]['current_max']
+    #TODO: check if this is correct (voltage and current swapped?)
+    def _output_query_voltage_level_max(self, index, current_limit):
+        index = ivi.get_index(self._output_name, index)
+        if current_limit < 0 or current_limit > self._output_spec[index]['current_max']:
+            raise ivi.OutOfRangeException()
+        return self._output_spec[index]['voltage_max']
+
+    #TODO: test
+    def _output_reset_output_protection(self, index):
+        if not self._driver_operation_simulate:
+            self._write(":output:protection:clear")
+
+    #TODO: test
     def _get_couple_tracking_type(self):
+        """
+        Get the tracking type:
+        * 0: independent (no tracking)
+        * 1: series tracking for channels 1 and 2
+        * 2: parallel tracking for channels 1 and 2
+        """
+        if not self._driver_operation_simulate and not self._get_cache_valid():
+            value = self._ask(":output:couple:tracking ?")
+            self._couple_tracking_type = TrackingTypeMapping[value]
+            self._set_cache_valid()
         return self._couple_tracking_type
 
+    #TODO: test
     def _set_couple_tracking_type(self, value):
+        """
+        Set the tracking type:
+        * 0: independent (no tracking)
+        * 1: series tracking for channels 1 and 2
+        * 2: parallel tracking for channels 1 and 2
+        """
         value = str(value)
         if value not in TrackingType:
             raise ivi.ValueNotSupportedException()
+        self._write(":output:couple:tracking %d" % int(TrackingTypeMapping[value]))
         self._couple_tracking_type = value
 
-    def _get_couple_trigger(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":instrument:couple:trigger?").lower()
-            self._couple_trigger = (value == 'on')
-            self._set_cache_valid()
-        return self._couple_trigger
-
-    def _set_couple_trigger(self, value):
-        value = bool(value)
-        if not self._driver_operation_simulate:
-            self._write(":instrument:couple:trigger %s" % ('off', 'on')[value])
-        self._couple_trigger = value
-        self._set_cache_valid()
-
+    #TODO: test
     def _memory_save(self, index):
         index = int(index)
         if index < 1 or index > self._memory_size:
@@ -174,24 +306,10 @@ class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigge
         if not self._driver_operation_simulate:
             self._write("*sav %d" % index)
 
+    #TODO: test
     def _memory_recall(self, index):
         index = int(index)
         if index < 1 or index > self._memory_size:
             raise OutOfRangeException()
         if not self._driver_operation_simulate:
             self._write("*rcl %d" % index)
-
-    def _get_memory_name(self, index):
-        index = int(index)
-        if index < 1 or index > self._memory_size:
-            raise OutOfRangeException()
-        if not self._driver_operation_simulate:
-            return self._ask("memory:state:name? %d" % index).strip(' "')
-
-    def _set_memory_name(self, index, value):
-        index = int(index)
-        value = str(value)
-        if index < 1 or index > self._memory_size:
-            raise OutOfRangeException()
-        if not self._driver_operation_simulate:
-            self._write("memory:state:name %d, \"%s\"" % (index, value))

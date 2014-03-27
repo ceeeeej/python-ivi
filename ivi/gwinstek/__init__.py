@@ -27,4 +27,5 @@ THE SOFTWARE.
 # GW Instek (Goodwill Instek)
 # DC Power supplies
 
+from .gwinstekPST3201 import gwinstekPST3201
 from .gwinstekPST3202 import gwinstekPST3202
