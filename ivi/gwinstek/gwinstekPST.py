@@ -27,6 +27,11 @@ THE SOFTWARE.
 from .. import ivi
 from .. import scpi
 
+CurrentLimitBehaviorMapping = {
+        'regulate': 0,
+        'trip': 1,
+        0: 'regulate',
+        1: 'trip'}
 TrackingType = set(['independent', 0, 'parallel', 1, 'series', 2])
 TrackingTypeMapping = {
         'independent': 0,
@@ -169,21 +174,21 @@ class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigge
     def _get_output_current_limit_behavior(self, index):
         index = ivi.get_index(self._output_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            value = bool(self._ask(":channel%s:protection:current ?"))
-            if value:
-                self._output_current_limit_behavior[index] = 'trip'
-            else:
-                self._output_current_limit_behavior[index] = 'regulate'
+            value = int(self._ask(":channel%s:protection:current ?" % (index+1)))
+            #if CurrentLimitBehaviorMapping[value]:
+            self._output_current_limit_behavior[index] = CurrentLimitBehaviorMapping[value]
+            #else:
+            #    self._output_current_limit_behavior[index] = 'regulate'
             self._set_cache_valid(index=index)
         return self._output_current_limit_behavior[index]
 
     #TODO: test
     def _set_output_current_limit_behavior(self, index, value):
         index = ivi.get_index(self._output_name, index)
-        if value not in dcpwr.CurrentLimitBehavior:
+        if value not in CurrentLimitBehaviorMapping:
             raise ivi.ValueNotSupportedException()
         if not self._driver_operation_simulate:
-            self._write(":channel%s:protection:current %d" % (index+1, int(bool(value))))
+            self._write(":channel%s:protection:current %d" % (index+1, int(CurrentLimitBehaviorMapping[value])))
         self._output_current_limit_behavior[index] = value
         for k in range(self._output_count):
             self._set_cache_valid(valid=False,index=k)
@@ -203,7 +208,7 @@ class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigge
     #TODO: test
     def _set_output_enabled(self, index, value):
         """
-        On the GW Instek PST series this function will turn on all of the outputs!
+        On the GW Instek PST series this function will turn on or off all of the outputs!
         """
         index = ivi.get_index(self._output_name, index)
         #value = bool(value)
@@ -218,7 +223,7 @@ class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigge
     def _get_output_ovp_limit(self, index):
         index = ivi.get_index(self._output_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._output_ovp_limit[index] = float(self._ask(":channel%s:protection:voltage ?" % (index+1))
+            self._output_ovp_limit[index] = float(self._ask(":channel%s:protection:voltage ?" % (index+1)))
             self._set_cache_valid(index=index)
         return self._output_ovp_limit[index]
 
