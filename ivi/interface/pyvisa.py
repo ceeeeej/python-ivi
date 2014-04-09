@@ -54,7 +54,7 @@ class PyVisaInstrument:
         
         self.instrument.write(data)
 
-    def read_raw(self, num=-1):
+    def read_raw(self, num=-1, encoding = 'utf-8'):
         "Read binary data from instrument"
         
         # PyVISA only supports reading entire buffer
@@ -63,7 +63,7 @@ class PyVisaInstrument:
         data = self.buffer.read(num)
         
         if len(data) == 0:
-            self.buffer = io.BytesIO(self.instrument.read_raw())
+            self.buffer = io.BytesIO(self.instrument.read_raw().encode(encoding))
             data = self.buffer.read(num)
         
         return data
