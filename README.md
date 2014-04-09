@@ -9,6 +9,8 @@ https://github.com/alexforencich/python-ivi
 Google group:
 https://groups.google.com/d/forum/python-ivi
 
+[![Build Status](https://travis-ci.org/ceeeeej/python-ivi.svg?branch=master)](https://travis-ci.org/ceeeeej/python-ivi)
+
 ## Introduction
 
 Python IVI is a Python-based interpretation of the Interchangeable Virtual
