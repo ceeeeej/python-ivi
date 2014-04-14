@@ -270,6 +270,18 @@ class gwinstekPST(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTrigge
             raise ivi.OutOfRangeException()
         return self._output_spec[index]['voltage_max']
 
+    def _output_measure(self, index, type):
+        index = ivi.get_index(self._output_name, index)
+        if type not in ['voltage', 'current']:
+            raise ivi.ValueNotSupportedException()
+        if type == 'voltage':
+            if not self._driver_operation_simulate:
+                return float(self._ask(":channel%s:measure:voltage ?" % (index+1)))
+        elif type == 'current':
+            if not self._driver_operation_simulate:
+                return float(self._ask(":channel%s:measure:current ?" % (index+1)))
+        return 0
+
     #TODO: test
     def _output_reset_output_protection(self, index):
         if not self._driver_operation_simulate:
