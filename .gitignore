@@ -8,3 +8,5 @@ dist
 
 Vagrantfile
 playbook.yml
+
+upgrade_venv_packages.sh
