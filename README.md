@@ -9,8 +9,6 @@ https://github.com/python-ivi/python-ivi
 Google group:
 https://groups.google.com/d/forum/python-ivi
 
-[![Build Status](https://travis-ci.org/ceeeeej/python-ivi.svg?branch=master)](https://travis-ci.org/ceeeeej/python-ivi)
-
 ## Introduction
 
 Python IVI is a Python-based interpretation of the Interchangeable Virtual
@@ -19,23 +17,31 @@ Instrument standard from the [IVI foundation](http://www.ivifoundation.org/).
 ## Included drivers
 
   * Oscilloscopes (scope):
-    * Agilent InfiniiVision 2000A/3000A series
+    * Agilent InfiniiVision 2000A X-series
+    * Agilent InfiniiVision 3000A X-series
+    * Agilent InfiniiVision 4000A X-series
     * Agilent InfiniiVision 6000A series
     * Agilent InfiniiVision 7000A/B series
     * Agilent Infiniium 90000A/90000X series
-    * LeCroy WaveRunner Xi-A / MXi-A series
-    * LeCroy Waverunner-2 series
+  * Digital Multimeters (dmm):
+    * Agilent 34401A
+    * Agilent 34410A
   * Function Generators (fgen):
+    * Agilent InfiniiVision 2000A X-series (Wavegen option)
+    * Agilent InfiniiVision 3000A X-series (Wavegen option)
+    * Agilent InfiniiVision 4000A X-series (Wavegen option)
     * Tektronix AWG2000 series
   * DC Power Supplies (dcpwr):
     * Agilent E3600A series
     * Agilent 603xA series
-    * Chroma ATE 62000P series
     * Rigol DP800 series
     * Rigol DP1000 series
     * Tektronix PS2520G/PS2521G
   * RF Power Meters (pwrmeter):
     * Agilent 436A
+    * Agilent 437B
+  * Spectrum Analyzers (specan):
+    * Agilent 859xE series
   * RF Signal Generators (rfsiggen):
     * Agilent 8642 A/B
   * Other
@@ -49,14 +55,15 @@ Instrument standard from the [IVI foundation](http://www.ivifoundation.org/).
 
 ## Instrument communication
 
-Python IVI can use Python VXI-11, Python USBTMC, pySerial and linux-gpib to
-connect to instruments.  The implementation of the initialize method takes a
-VISA resource string and attempts to connect to an instrument.  If the resource
-string starts with TCPIP, then Python IVI will attempt to use Python VXI-11.
-If it starts with USB, it attempts to use Python USBTMC.  If it starts with
-GPIB, it will attempt to use linux-gpib's python interface.  If it starts with
-ASRL, it attemps to use pySerial.  Integration with PyVISA is planned, but not
-currently supported.
+Python IVI can use Python VXI-11, Python USBTMC, PyVISA, pySerial and
+linux-gpib to connect to instruments.  The implementation of the initialize
+method takes a VISA resource string and attempts to connect to an instrument.
+If the resource string starts with TCPIP, then Python IVI will attempt to use
+Python VXI-11. If it starts with USB, it attempts to use Python USBTMC.  If it
+starts with GPIB, it will attempt to use linux-gpib's python interface.  If it
+starts with ASRL, it attemps to use pySerial.  Python IVI will fall back on
+PyVISA if it is detected.  It is also possible to configure IVI to prefer
+PyVISA over the other supported interfaces.  
 
 ## A note on standards compliance
 
@@ -74,7 +81,7 @@ the corresponding COM specifications.  There are some major deviations from
 the specification in order to be consistent with the spirit of the other IVI
 specifications.  The fgen class is the most obvious example of this, using
 properties instead of the getters and setters as required by the IVI
-specification.
+specification.  
 
 ## Requirements
 
@@ -96,7 +103,7 @@ with an instrument, you must install one or more of the following drivers:
 
 Python VXI11 provides a pure python TCP/IP driver for LAN based instruments
 that support the VXI11 protocol.  This includes most LXI instruments and also
-devices like the Agilent E2050 GPIB to LAN converter.
+devices like the Agilent E2050 GPIB to LAN converter.  
 
 Home page:
 http://www.alexforencich.com/wiki/en/python-vxi11/start
@@ -116,12 +123,38 @@ http://alexforencich.com/wiki/en/python-usbtmc/start
 GitHub repository:
 https://github.com/alexforencich/python-usbtmc
 
+#### PyVISA
+
+A Python package for support of the Virtual Instrument Software Architecture
+(VISA), in order to control measurement devices and test equipment via GPIB,
+RS232, or USB.
+
+Home page:
+http://pyvisa.readthedocs.org/
+
+Python IVI will use PyVISA as a fallback for all connections, if it is
+detected.  If a connection with PyVISA is preferred, then there are two ways
+of changing this.  First, the prefer_pyvisa option can be set when
+initalizing an instrument:
+
+    mso = ivi.agilent.agilentMSO7104A("TCPIP0::192.168.1.104::INSTR", prefer_pyvisa = True)
+
+or equivalently:
+
+    mso = ivi.agilent.agilentMSO7104A()
+    mso.initialize("TCPIP0::192.168.1.104::INSTR", prefer_pyvisa = True)
+
+Second, the prefer_pyvisa option can be set globally:
+
+    ivi.set_prefer_pyvisa(True)
+    mso = ivi.agilent.agilentMSO7104A("TCPIP0::192.168.1.104::INSTR")
+
 #### Linux GPIB
 
 Python IVI provides an interface wrapper for the Linux GPIB driver.  If the
 Linux GPIB driver and its included Python interface available, Python IVI can
 use it to communicate with instruments via any GPIB interface supported by
-Linux GPIB.
+Linux GPIB.  
 
 Home page:
 http://linux-gpib.sourceforge.net/
@@ -130,7 +163,7 @@ http://linux-gpib.sourceforge.net/
 
 Python IVI provides an interface wrapper for the pySerial library.  If
 pySerial is installed, Python IVI can use it to communicate with instruments
-via the serial port.
+via the serial port.  
 
 Home page:
 http://pyserial.sourceforge.net/
@@ -184,7 +217,7 @@ This will result in the complete documentation:
 
 This sample Python code will use Python IVI to connect to an Agilent MSO7104A
 over LXI (VXI-11), configure the timebase, trigger, and channel 1, capture a
-waveform, and read it out of the instrument.
+waveform, and read it out of the instrument.  
 
     # import Python IVI
     import ivi
@@ -227,7 +260,7 @@ waveform, and read it out of the instrument.
     mso.system.load_setup(setup)
 
 This sample Python code will use Python IVI to connect to a Tektronix AWG2021,
-generate a sinewave with numpy, and transfer it to channel 1.
+generate a sinewave with numpy, and transfer it to channel 1.  
 
     # import Python IVI
     import ivi
