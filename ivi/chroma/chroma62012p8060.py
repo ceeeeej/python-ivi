@@ -41,14 +41,9 @@ class chroma62012p8060(chroma62000p):
                 'range': {
                     'P80V': (80.0, 60.0)
                 },
-                'ovp_max': 88.0,
-                'ocp_max': 66.0,
+                'ovp_max': 88.0, # 1.1 x max voltage
+                'ocp_max': 63.0, # 1.05 x max current
                 'voltage_max': 80.0,
                 'current_max': 60.0
             }
         ]
-
-        self._init_outputs()
-        
-    
-    

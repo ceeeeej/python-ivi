@@ -70,28 +70,40 @@ class chromaBaseDCPwr(scpi.dcpwr.Base, scpi.dcpwr.Trigger, scpi.dcpwr.SoftwareTr
         self._identity_supported_instrument_models = ['62006P-100-25', '62012P-80-60', '62012P-100-50', '62012P-600-8',
                                                       '62006P-30-80', '62006P-300-8', '62012P-40-120', '62024P-40-120',
                                                       '62024P-80-60', '62024P-100-50', '62024P-600-8', '62050P-100-100']
-        
-        ivi.add_method(self, 'memory.save',
-                        self._memory_save)
-        ivi.add_method(self, 'memory.recall',
-                        self._memory_recall)
-        
+
+
+
         self._init_outputs()
-        
-    
-    def _memory_save(self, index):
-        index = int(index)
-        if index < 1 or index > self._memory_size:
-            raise OutOfRangeException()
-        if not self._driver_operation_simulate:
-            self._write("*sav %d" % index)
-    
-    def _memory_recall(self, index):
-        index = int(index)
-        if index < 1 or index > self._memory_size:
-            raise OutOfRangeException()
-        if not self._driver_operation_simulate:
-            self._write("*rcl %d" % index)
+
+    def _init_outputs(self):
+        try:
+            super(chromaBaseDCPwr, self)._init_outputs()
+        except AttributeError:
+            pass
+
+        self._output_name = list()
+        self._output_current_limit = list()
+        self._output_current_limit_behavior = list()
+        self._output_enabled = list()
+        self._output_ovp_enabled = list()
+        self._output_ovp_limit = list()
+        self._output_voltage_level = list()
+        self._output_voltage_max = list()
+        self._output_slew_rate = list()
+        for i in range(self._output_count):
+            self._output_name.append("output%d" % (i+1))
+            self._output_current_limit.append(self._output_spec[i-1]['current_max'])
+            self._output_current_limit.append(0)
+            #self._output_current_limit_behavior.append('regulate')
+            self._output_enabled.append(False)
+            self._output_ovp_enabled.append(True)
+            self._output_ovp_limit.append(self._output_spec[i-1]['ovp_max'])
+            self._output_voltage_level.append(0)
+            self._output_voltage_max.append(self._output_spec[i-1]['voltage_max'])
+            self._output_slew_rate.append(0)
+
+        self.outputs._set_list(self._output_name)
+
     
     
     
