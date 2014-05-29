@@ -39,15 +39,31 @@ ScreenshotImageFormatMapping = {
         'png24': 'png',
         'psd': 'psd',
         'tiff': 'tiff'}
-NoiseFilterMapping = {
-        0.0: 'None',
-        0.5: '0.5bits',
-        1.0: '1.0bits',
-        1.5: '1.5bits',
-        2.0: '2.0bits',
-        2.5: '2.5bits',
-        3.0: '3.0bits',
-        }
+NoiseFilters = ["None", "0.5bits", "1bits", "1.5bits", "2bits", "2.5bits", "3bits"]
+#NoiseFilterMapping = {
+#        'None': 'None',
+#        0.0: 'None',
+#        '0.5bits': '0.5bits',
+#        0.5: '0.5bits',
+#        '1bits': '1bits',
+#        1.0: '1bits',
+#        '1.5bits': '1.5bits',
+#        1.5: '1.5bits',
+#        '2bits': '2bits',
+#        2.0: '2bits',
+#        '2.5bits': '2.5bits',
+#        2.5: '2.5bits',
+#        '3bits': '3bits',
+#        3.0: '3bits',
+#        }
+
+def clean_vbs(s):
+    """
+    Strip out the leading "VBS" that comes from reading string data from the scope using LeCroy VBS commands.
+    This function splits the returned string and discards the first item before the space (strips "VBS")
+    """
+    s = s.split(' ',1)[1]
+    return s
 
 class lecroyWRXIA(lecroyBaseScope):
     "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
@@ -57,6 +73,7 @@ class lecroyWRXIA(lecroyBaseScope):
 
         super(lecroyWRXIA, self).__init__(*args, **kwargs)
 
+        self._channel_interpolation = list()
         self._analog_channel_name = list()
         self._analog_channel_count = 4
         self._digital_channel_name = list()
@@ -88,15 +105,29 @@ class lecroyWRXIA(lecroyBaseScope):
                         * 2.5: '2.5bits'
                         * 3.0: '3.bits'
                         """))
+        ivi.add_property(self, 'channels[].interpolation',
+                        self._get_channel_interpolation,
+                        self._set_channel_interpolation,
+                        None,
+                        ivi.Doc("""
+                        Specifies the channel interpolation setting. Default is linear.
+
+                        Values:
+                        * Linear: Linear interpolation
+                        * Sinxx: Sinx/x interpolation
+                        """))
 
         self._init_channels()
 
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_label(self, index):
+        """
+        Get the value of the label
+        """
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             # TODO: test command again, may need to add the .strip('"') to the end if this does not work
-            self._channel_label[index] = self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index]))
+            self._channel_label[index] = clean_vbs(self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index])))
             #self._channel_label[index] = self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index])).strip('"')
         self._set_cache_valid(index=index)
         return self._channel_label[index]
@@ -112,16 +143,54 @@ class lecroyWRXIA(lecroyBaseScope):
         self._channel_label[index] = value
         self._set_cache_valid(index=index)
 
+    # Added for LeCroy, WORKING ON WR104XI-A
+    def _get_channel_label_position(self, index):
+        """
+        Get the position of the label in seconds
+        """
+        index = ivi.get_index(self._channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_label[index] = float(clean_vbs(self._ask("VBS? \"Return=app.Acquisition.%s.LabelsPosition\"" % (self._channel_name[index]))))
+        self._set_cache_valid(index=index)
+        return self._channel_label_position[index]
+
+    # Added for LeCroy, WORKING ON WR104XI-A
+    def _set_channel_label_position(self, index, value):
+        """
+        Set the position of the label in seconds; data should be sent as a float
+        ex: 55e-9 will result in a label position of 55 ns
+
+        If display_labels is set to True then the new labels will be shown on the screen
+        """
+        value = str(value)
+        index = ivi.get_index(self._channel_name, index)
+        if not self._driver_operation_simulate:
+            self._write("VBS \"app.Acquisition.%s.LabelsPosition = \"\"%s\"" % (self._channel_name[index], value))
+            if self._display_labels == True:
+                self._write("VBS \"app.Acquisition.%s.ViewLabels = True\"" % self._channel_name[index])
+        self._channel_label_position[index] = value
+        self._set_cache_valid(index=index)
+
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_invert(self, index):
-        index = ivi.get_index(self._analog_channel_name, index)
+        """
+        Returns the status of the channel invert setting.
+        * False = Not inverted
+        * True = Inverted
+        """
+        index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_invert[index] = bool(self._ask("VBS? \"Return=app.Acquisition.%s.Invert\"" % self._channel_name[index]))
+            self._channel_invert[index] = bool(int(clean_vbs(self._ask("VBS? \"Return=app.Acquisition.%s.Invert\"" % self._channel_name[index]))))
             self._set_cache_valid(index=index)
         return self._channel_invert[index]
 
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_invert(self, index, value):
+        """
+        Sets the channel invert setting:
+        * False = Not inverted
+        * True = Inverted
+        """
         index = ivi.get_index(self._analog_channel_name, index)
         value = bool(value)
         if not self._driver_operation_simulate:
@@ -129,21 +198,57 @@ class lecroyWRXIA(lecroyBaseScope):
         self._channel_invert[index] = value
         self._set_cache_valid(index=index)
 
-    # TODO: test channel_noise_filter
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_noise_filter(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_noise_filter[index] = self._ask("VBS? \"Return=app.Acquisition.%s.EnhanceResType\"" % (self._channel_name[index]))
+            self._channel_noise_filter[index] = clean_vbs(self._ask("VBS? \"Return=app.Acquisition.%s.EnhanceResType\"" % (self._channel_name[index])))
             self._set_cache_valid(index=index)
         return self._channel_noise_filter[index]
-    # TODO: test channel_noise_filter
-    def _set_channel_noise_filter(self, index, filter):
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _set_channel_noise_filter(self, index, filtertype):
+        """
+        Set the channel noise filter setting.
+
+        Valid settings:
+        * None
+        * 0.5bits
+        * 1bits
+        * 1.5bits
+        * 2bits
+        * 2.5bits
+        * 3bits
+        """
         index = ivi.get_index(self._analog_channel_name, index)
-        filter = NoiseFilterMapping[filter]
+        filtertype = str(NoiseFilters[filtertype])
+        if filter_type not in NoiseFilters:
+            raise ivi.ValueNotSupportedException()
         if not self._driver_operation_simulate:
-            self._write("VBS \"app.Acquisition.%s.EnhanceResType = \"\"%s\"" % (self._channel_name[index], str(filter)))
-        self._channel_noise_filter[index] = filter
+            self._write("VBS \"app.Acquisition.%s.EnhanceResType = \"\"%s\"" % (self._channel_name[index], filtertype))
+        self._channel_noise_filter[index] = filtertype
         self._set_cache_valid(index=index)
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _get_channel_interpolation(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_interpolation[index] = clean_vbs(self._ask("VBS? \"Return=app.Acquisition.%s.InterpolateType\"" % (self._channel_name[index])))
+            self._set_cache_valid(index=index)
+        return self._channel_interpolation[index]
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _set_channel_interpolation(self, index, interpolate_setting):
+        """
+        Set the channel interpolation setting.
+        """
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate:
+            self._write("VBS \"app.Acquisition.%s.InterpolateType = \"\"%s\"" % (self._channel_name[index], interpolate_setting))
+        self._channel_interpolation[index] = interpolate_setting
+        self._set_cache_valid(index=index)
+
+
     #TODO: test
     def _measurement_auto_setup(self):
         if not self._driver_operation_simulate:

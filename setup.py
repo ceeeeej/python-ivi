@@ -44,7 +44,7 @@ electronic test equipment that is remotely controllable.''',
         'Programming Language :: Python :: 3'
         ],
     packages = ['ivi', 'ivi.interface', 'ivi.extra', 'ivi.scpi', 'ivi.agilent', 'ivi.chroma', 'ivi.colby',
-                'ivi.dicon', 'ivi.gwinstek', 'ivi.jdsu', 'ivi.lecroy', 'ivi.rigol', 'ivi.tektronix'],
+                'ivi.dicon', 'ivi.gwinstek', 'ivi.jdsu', 'ivi.lecroy', 'ivi.prodigit', 'ivi.rigol', 'ivi.tektronix'],
     requires = ['numpy'],
     extras_require = {
         'vxi11': ['python-vxi11'],

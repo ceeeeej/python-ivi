@@ -2,7 +2,7 @@
 
 Python Interchangeable Virtual Instrument Library
 
-Copyright (c) 2012-2014 Alex Forencich
+Copyright (c) 2013-2014 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,13 +24,26 @@ THE SOFTWARE.
 
 """
 
-__all__ = [
-        # Common functions
-        "common",
-        # IVI implementations
-        "dcpwr", "dmm",
-        # non-IVI implementations
-        "dcload"]
+from .prodigit3000 import *
 
-from . import *
+class prodigit3311C(prodigit3000):
+    "Prodigit 3311C series IVI electronic DC load driver"
 
+    def __init__(self, *args, **kwargs):
+        self.__dict__.setdefault('_instrument_id', '62012P-80-60')
+
+        super(prodigit3311C, self).__init__(*args, **kwargs)
+
+        self._channel_count = 1
+
+        self._channel_spec = [
+            {
+                'range': {
+                    'P60V': (60.0, 30.0)
+                },
+                'ovp_max': 66.0,
+                'ocp_max': 33.0,
+                'voltage_max': 60.0,
+                'current_max': 30.0
+            }
+        ]

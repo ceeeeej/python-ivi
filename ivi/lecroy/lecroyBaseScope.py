@@ -159,6 +159,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._digital_channel_count = 16
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         self._channel_label = list()
+        self._channel_label_position = list()
+        self._channel_noise_filter = list()
+        self._channel_interpolation = list()
         self._channel_probe_skew = list()
         self._channel_invert = list()
         self._channel_probe_id = list()
@@ -225,6 +228,13 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         ivi.Doc("""
                         Sets the channel label.  Setting a channel label also adds the label to
                         the nonvolatile label list. Setting the label will turn it's display on.
+                        """))
+        ivi.add_property(self, 'channels[].label_position',
+                        self._get_channel_label_position,
+                        self._set_channel_label_position,
+                        None,
+                        ivi.Doc("""
+                        Set the channel label positions
                         """))
         ivi.add_property(self, 'channels[].scale',
                         self._get_channel_scale,
@@ -478,6 +488,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
         self._channel_name = list()
         self._channel_label = list()
+        self._channel_label_position = list()
+        self._channel_noise_filter = list()
+        self._channel_interpolation = list()
         self._channel_probe_skew = list()
         self._channel_invert = list()
         self._channel_probe_id = list()
@@ -488,6 +501,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         for i in range(self._analog_channel_count):
             self._channel_name.append("C%d" % (i+1))
             self._channel_label.append("%d" % (i+1))
+            self._channel_label_position.append(0)
+            self._channel_noise_filter.append(0)
+            self._channel_interpolation.append("Linear")
             self._analog_channel_name.append("C%d" % (i+1))
             self._channel_probe_skew.append(0)
             self._channel_invert.append(False)

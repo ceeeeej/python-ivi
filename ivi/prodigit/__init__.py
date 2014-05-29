@@ -2,7 +2,7 @@
 
 Python Interchangeable Virtual Instrument Library
 
-Copyright (c) 2012-2014 Alex Forencich
+Copyright (c) 2012 Alex Forencich
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -24,13 +24,6 @@ THE SOFTWARE.
 
 """
 
-__all__ = [
-        # Common functions
-        "common",
-        # IVI implementations
-        "dcpwr", "dmm",
-        # non-IVI implementations
-        "dcload"]
-
-from . import *
-
+# Prodigit
+# Prodigit DC Loads
+from .prodigit3311C import prodigit3311C
