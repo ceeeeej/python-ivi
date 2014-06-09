@@ -39,7 +39,7 @@ ScreenshotImageFormatMapping = {
         'png24': 'png',
         'psd': 'psd',
         'tiff': 'tiff'}
-NoiseFilters = ["None", "0.5bits", "1bits", "1.5bits", "2bits", "2.5bits", "3bits"]
+NoiseFilters = set(["None", "0.5bits", "1bits", "1.5bits", "2bits", "2.5bits", "3bits"])
 #NoiseFilterMapping = {
 #        'None': 'None',
 #        0.0: 'None',
@@ -66,7 +66,7 @@ def clean_vbs(s):
     return s
 
 class lecroyWRXIA(lecroyBaseScope):
-    "LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"
+    """LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"""
 
     def __init__(self, *args, **kwargs):
         self.__dict__.setdefault('_instrument_id', '')
@@ -122,7 +122,7 @@ class lecroyWRXIA(lecroyBaseScope):
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_label(self, index):
         """
-        Get the value of the label
+        Get the label for the specified channel.
         """
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
@@ -134,6 +134,9 @@ class lecroyWRXIA(lecroyBaseScope):
 
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_label(self, index, value):
+        """
+        Set the label for the specified channel.
+        """
         value = str(value)
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate:
@@ -146,7 +149,7 @@ class lecroyWRXIA(lecroyBaseScope):
     # Added for LeCroy, WORKING ON WR104XI-A
     def _get_channel_label_position(self, index):
         """
-        Get the position of the label in seconds
+        Get the position of the label in seconds.
         """
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
@@ -222,7 +225,7 @@ class lecroyWRXIA(lecroyBaseScope):
         """
         index = ivi.get_index(self._analog_channel_name, index)
         filtertype = str(NoiseFilters[filtertype])
-        if filter_type not in NoiseFilters:
+        if filtertype not in NoiseFilters:
             raise ivi.ValueNotSupportedException()
         if not self._driver_operation_simulate:
             self._write("VBS \"app.Acquisition.%s.EnhanceResType = \"\"%s\"" % (self._channel_name[index], filtertype))
