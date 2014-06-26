@@ -42,6 +42,8 @@ BehaviorMapping = {
     "dynamic": 1
 }
 
+MeasurementType = ['current', 'voltage']
+
 class prodigit3000(prodigitBaseDCLoad):
     """Prodigit 3000 series IVI electronic DC load driver"""
 
@@ -210,24 +212,60 @@ class prodigit3000(prodigitBaseDCLoad):
         self._channel_dynamic[index] = bool(value)
         self._set_cache_valid(index=index)
 
-    # Tested on Prodigit 3311C; working
-    def _get_channel_current_low(self, index):
+    # TODO: test
+    def _get_channel_cc_low(self, index):
         """
         This function gets the status of the dynamic operating behavior of the channel.
         """
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_current_low[index] = float(self._ask("LIM:CURRENT:LOW ?"))
+            self._channel_cc_low[index] = float(self._ask("CC:LOW ?"))
             self._set_cache_valid(index=index)
-        return self._channel_current_low[index]
+        return self._channel_cc_low[index]
 
-    # Tested on Prodigit 3311C; working
-    def _set_channel_current_low(self, index, value):
+    # TODO: test
+    def _set_channel_cc_low(self, index, value):
         """
         This function sets the status of the dynamic operating behavior of the channel.
         """
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate:
-            self._write("LIM:CURRENT:LOW %.2f" % float(value))
-        self._channel_current_low[index] = float(value)
+            self._write("CC:LOW %.2f" % float(value))
+        self._channel_cc_low[index] = float(value)
         self._set_cache_valid(index=index)
+
+    # TODO: test
+    def _get_channel_cc_high(self, index):
+        """
+
+        """
+        index = ivi.get_index(self._channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_cc_high[index] = float(self._ask("CC:HIGH ?"))
+            self._set_cache_valid(index=index)
+        return self._channel_cc_high[index]
+
+    # TODO: test
+    def _set_channel_cc_high(self, index, value):
+        """
+
+        """
+        index = ivi.get_index(self._channel_name, index)
+        if not self._driver_operation_simulate:
+            self._write("CC:HIGH %.2f" % float(value))
+        self._channel_cc_high[index] = float(value)
+        self._set_cache_valid(index=index)
+
+    # TODO: test
+    def _get_channel_level(self, index):
+        index = ivi.get_index(self._channel_name, index)
+        self._channel_level[index] = int(self._ask("LEVEL ?"))
+        return self._channel_level[index]
+    # TODO: test
+    def _set_channel_level(self, index, value):
+        index = ivi.get_index(self._channel_name, index)
+        value = int(value)
+        #if value not in Levels:
+        #    raise ivi.OutOfRangeException()
+        self._write("LEVEL %d" % value)
+        self._channel_level[index] = value

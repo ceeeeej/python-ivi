@@ -59,6 +59,10 @@ class Base(object):
         grp = 'Base'
         ivi.add_group_capability(self, cls+grp)
 
+        self._channel_current_low = list()
+        self._channel_current_high = list()
+        self._channel_level = list()
+
         self._channel_current_limit = list()
         self._channel_current_limit_behavior = list()
         self._channel_enabled = list()
@@ -78,6 +82,31 @@ class Base(object):
                 'current_max': 0
             }
         ]
+
+        ivi.add_property(self, 'channels[].cc_low',
+                        self._get_channel_cc_low,
+                        self._set_channel_cc_low,
+                        None,
+                        ivi.Doc("""
+                        Specifies the output constant current low setting. The units are Amps.
+                        """))
+
+        ivi.add_property(self, 'channels[].cc_high',
+                        self._get_channel_cc_high,
+                        self._set_channel_cc_high,
+                        None,
+                        ivi.Doc("""
+                        Specifies the output constant current high setting. The units are Amps.
+                        """))
+
+        ivi.add_property(self, 'channels[].level',
+                        self._get_channel_level,
+                        self._set_channel_level,
+                        None,
+                        ivi.Doc("""
+                        Specifies the active level setting; low or high.
+                        """))
+
 
         ivi.add_property(self, 'channels[].current_limit',
                         self._get_channel_current_limit,
@@ -280,6 +309,10 @@ class Base(object):
             pass
 
         self._channel_name = list()
+
+        self._channel_cc_low = list()
+        self._channel_cc_high = list()
+
         self._channel_current_limit = list()
         self._channel_current_limit_behavior = list()
         self._channel_enabled = list()
@@ -289,6 +322,11 @@ class Base(object):
         self._channel_voltage_max = list()
         for i in range(self._channel_count):
             self._channel_name.append("output%d" % (i+1))
+
+            self._channel_cc_low.append(0)
+            self._channel_cc_high.append(0)
+            self._channel_level.append(0)
+
             self._channel_current_limit.append(0)
             self._channel_current_limit_behavior.append('regulate')
             self._channel_enabled.append(False)
@@ -298,6 +336,43 @@ class Base(object):
             self._channel_voltage_max.append(0)
 
         self.channels._set_list(self._channel_name)
+
+
+
+
+    def _get_channel_cc_low(self, index):
+        index = ivi.get_index(self._channel_name, index)
+        return self._channel_cc_low[index]
+
+    def _set_channel_cc_low(self, index, value):
+        index = ivi.get_index(self._channel_name, index)
+        value = float(value)
+        if value < 0 or value > self._channel_spec[index]['current_max']:
+            raise ivi.OutOfRangeException()
+        self._channel_cc_low[index] = value
+
+    def _get_channel_cc_high(self, index):
+        index = ivi.get_index(self._channel_name, index)
+        return self._channel_cc_high[index]
+
+    def _set_channel_current_high(self, index, value):
+        index = ivi.get_index(self._channel_name, index)
+        value = float(value)
+        if value < 0 or value > self._channel_spec[index]['current_max']:
+            raise ivi.OutOfRangeException()
+        self._channel_cc_high[index] = value
+
+    def _get_channel_level(self, index):
+        index = ivi.get_index(self._channel_name, index)
+        return self._channel_level[index]
+
+    def _set_channel_level(self, index, value):
+        index = ivi.get_index(self._channel_name, index)
+        value = int(value)
+        self._channel_level[index] = value
+
+
+
 
     def _get_channel_current_limit(self, index):
         index = ivi.get_index(self._channel_name, index)

@@ -68,9 +68,12 @@ class prodigitBaseDCLoad(scpi.dcload.Base):
         ivi.add_property(self, 'channels.dynamic',
                         self._get_channel_dynamic,
                         self._set_channel_dynamic)
-        ivi.add_property(self, 'channels.current.low',
-                        self._get_channel_current_low,
-                        self._set_channel_current_low)
+        #ivi.add_property(self, 'channels.current.low',
+        #                self._get_channel_current_low,
+        #                self._set_channel_current_low)
+        #ivi.add_property(self, 'channels.current.high',
+        #                self._get_channel_current_high,
+        #                self._set_channel_current_high)
 
         self._init_channels()
 
@@ -83,8 +86,10 @@ class prodigitBaseDCLoad(scpi.dcload.Base):
         self._channel_name = list()
         self._channel_mode = list()
         self._channel_dynamic = list()
+        self._channel_level = list()
         self._channel_current_limit = list()
         self._channel_current_low = list()
+        self._channel_current_high = list()
         self._channel_enabled = list()
         self._channel_ovp_enabled = list()
         self._channel_ovp_limit = list()
@@ -94,10 +99,12 @@ class prodigitBaseDCLoad(scpi.dcload.Base):
         for i in range(self._channel_count):
             self._channel_name.append("output%d" % (i+1))
             self._channel_mode.append(0)
-            self._channel_dynamic.append(0)
+            self._channel_dynamic.append(False)
+            self._channel_level.append("low")
             self._channel_current_limit.append(self._channel_spec[i-1]['current_max'])
             self._channel_current_limit.append(0)
-            self._channel_current_low.append(0)
+            #self._channel_current_low.append(0)
+            #self._channel_current_high.append(0)
             self._channel_enabled.append(False)
             self._channel_ovp_enabled.append(True)
             self._channel_ovp_limit.append(self._channel_spec[i-1]['ovp_max'])
