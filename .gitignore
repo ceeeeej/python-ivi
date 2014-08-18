@@ -1,5 +1,3 @@
-.env
-
 *~
 *.kate-swp
 *.pyc
@@ -8,9 +6,8 @@ build
 dist
 *.egg-info
 
+.env
 Vagrantfile
-playbook.yml
-
-upgrade_venv_packages.sh
-
 my_references/
+playbook.yml
+upgrade_venv_packages.sh

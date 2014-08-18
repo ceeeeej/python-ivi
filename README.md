@@ -34,6 +34,7 @@ Instrument standard from the [IVI foundation](http://www.ivifoundation.org/).
   * DC Power Supplies (dcpwr):
     * Agilent E3600A series
     * Agilent 603xA series
+    * Chroma 62000P series
     * Rigol DP800 series
     * Rigol DP1000 series
     * Tektronix PS2520G/PS2521G
@@ -41,12 +42,15 @@ Instrument standard from the [IVI foundation](http://www.ivifoundation.org/).
     * Agilent 436A
     * Agilent 437B
   * Spectrum Analyzers (specan):
-    * Agilent 859xE series
+    * Agilent 859xA/B series
+    * Agilent 859xE/EM/C/L series
   * RF Signal Generators (rfsiggen):
     * Agilent 8642 A/B
+    * Agilent ESG E4400B series
   * Other
     * Agilent 8156A optical attenuator
     * Agilent 86140B series optical spectrum analyzer
+    * Agilent 85644/5A tracking source
     * Colby Instruments PDL10A Programmable Delay Line
     * DiCon Fiberoptics GP700 Programmable Fiberoptic Instrument
     * JDS Uniphase TB9 Series Optical Grating Filter
@@ -86,6 +90,7 @@ specification.
 ## Requirements
 
 * Python 2 or Python 3
+* [NumPy](http://www.numpy.org)
 * One or more communication extensions
 
 ## Installation
@@ -109,7 +114,7 @@ Home page:
 http://www.alexforencich.com/wiki/en/python-vxi11/start
 
 GitHub repository:
-https://github.com/alexforencich/python-vxi11
+https://github.com/python-ivi/python-vxi11
 
 #### Python USBTMC
 
@@ -121,7 +126,7 @@ Home page:
 http://alexforencich.com/wiki/en/python-usbtmc/start
 
 GitHub repository:
-https://github.com/alexforencich/python-usbtmc
+https://github.com/python-ivi/python-usbtmc
 
 #### PyVISA
 
@@ -306,3 +311,37 @@ and configure an output.
     psu.outputs[0].ovp_limit = 14.0
     psu.outputs[0].ovp_enabled = True
     psu.outputs[0].enabled = True
+
+
+It is also possible to control multiple instruments.  This example configures
+an Agilent ESG E4433B vector signal generator to output an IQ modulated multitone
+waveform which is then received on an Agilent 8593E spectrum analyzer.
+
+    # import Python IVI
+    import ivi
+    # import numpy
+    import numpy as np
+    # connect to E4433B via E2050A
+    esg = ivi.agilent.agilentE4433B("TCPIP::192.168.1.110::gpib,19::INSTR")
+    # connect to 8593E via E2050A
+    sa = ivi.agilent.agilent8593E("TCPIP::192.168.1.110::gpib,18::INSTR")
+    # create multitone IQ waveform
+    n = 2000
+    f1 = 1
+    a1 = 0.5
+    f2 = 3
+    a2 = 0.5
+    t = np.arange(0,n)
+    yi = a1*np.sin(2*np.pi/n*f1*t)+a2*np.sin(2*np.pi/n*f2*t)
+    yq = np.zeros(n)
+    # configure ESG
+    esg.rf.frequency = 4e9
+    esg.rf.level = -10
+    esg.digital_modulation.arb.write_waveform('wfm', yi, yq)
+    esg.digital_modulation.arb.selected_waveform = 'wfm'
+    esg.digital_modulation.arb.clock_frequency = 10e6
+    esg.iq.source = 'arb_generator'
+    esg.iq.enabled = True
+    esg.rf.output_enabled = True
+    # configure SA
+    sa.frequency.configure_center_span(4e9, 100e3)

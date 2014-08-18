@@ -81,10 +81,10 @@ class tektronixAWG2000(ivi.Driver, fgen.Base, fgen.StdFunc, fgen.ArbWfm,
         
         self._init_outputs()
     
-    def initialize(self, resource = None, id_query = False, reset = False, **keywargs):
+    def _initialize(self, resource = None, id_query = False, reset = False, **keywargs):
         "Opens an I/O session to the instrument."
         
-        super(tektronixAWG2000, self).initialize(resource, id_query, reset, **keywargs)
+        super(tektronixAWG2000, self)._initialize(resource, id_query, reset, **keywargs)
         
         # interface clear
         if not self._driver_operation_simulate:
@@ -216,7 +216,7 @@ class tektronixAWG2000(ivi.Driver, fgen.Base, fgen.StdFunc, fgen.ArbWfm,
         index = ivi.get_index(self._output_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             resp = self._ask(":output:ch%d:state?" % (index+1)).split(' ', 1)[1]
-            self._output_standard_waveform_amplitude[index] = bool(int(resp))
+            self._output_enabled[index] = bool(int(resp))
             self._set_cache_valid(index=index)
         return self._output_enabled[index]
     

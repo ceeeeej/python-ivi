@@ -155,10 +155,22 @@ from .agilentMSOX92804A import agilentMSOX92804A
 from .agilentMSOX93204A import agilentMSOX93204A
 
 # Spectrum Analyzers
-# 859x series
+# 859xA series
+from .agilent8590A import agilent8590A
+from .agilent8590B import agilent8590B
+from .agilent8591A import agilent8591A
+from .agilent8592A import agilent8592A
+from .agilent8592B import agilent8592B
+from .agilent8593A import agilent8593A
+from .agilent8594A import agilent8594A
+from .agilent8595A import agilent8595A
+# 859xE series
+from .agilent8590E import agilent8590E
 from .agilent8590L import agilent8590L
 from .agilent8591C import agilent8591C
 from .agilent8591E import agilent8591E
+from .agilent8591EM import agilent8591EM
+from .agilent8592L import agilent8592L
 from .agilent8593E import agilent8593E
 from .agilent8593EM import agilent8593EM
 from .agilent8594E import agilent8594E
@@ -207,8 +219,30 @@ from .agilent436A import agilent436A
 from .agilent437B import agilent437B
 
 # RF Signal Generators
+# 8642A/B
 from .agilent8642A import agilent8642A
 from .agilent8642B import agilent8642B
+# E4400B ESG
+from .agilentE4400B import agilentE4400B
+from .agilentE4420B import agilentE4420B
+from .agilentE4421B import agilentE4421B
+from .agilentE4422B import agilentE4422B
+from .agilentE4423B import agilentE4423B
+from .agilentE4424B import agilentE4424B
+from .agilentE4425B import agilentE4425B
+from .agilentE4426B import agilentE4426B
+from .agilentE4430B import agilentE4430B
+from .agilentE4431B import agilentE4431B
+from .agilentE4432B import agilentE4432B
+from .agilentE4433B import agilentE4433B
+from .agilentE4434B import agilentE4434B
+from .agilentE4435B import agilentE4435B
+from .agilentE4436B import agilentE4436B
+from .agilentE4437B import agilentE4437B
+
+# Tracking sources
+from .agilent85644A import agilent85644A
+from .agilent85645A import agilent85645A
 
 # Optical spectrum analyzers
 from .agilent86140B import agilent86140B

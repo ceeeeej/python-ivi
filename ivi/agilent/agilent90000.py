@@ -24,8 +24,18 @@ THE SOFTWARE.
 
 """
 
-from .agilentBaseScope import *
+from .agilentBaseInfiniium import *
 
+AcquisitionModeMapping = {
+        'etim': ('normal', 'equivalent_time'),
+        'rtim': ('normal', 'real_time'),
+        'pdet': ('peak_detect', 'real_time'),
+        'hres': ('high_resolution', 'real_time'),
+        'segm': ('normal', 'segmented'),
+        'segp': ('peak_detect', 'segmented'),
+        'segh': ('high_resolution', 'segmented')
+}
+AcquisitionType = set(['normal', 'peak_detect', 'high_resolution'])
 VerticalCoupling = set(['dc'])
 ScreenshotImageFormatMapping = {
         'tif': 'tif',
@@ -37,8 +47,9 @@ ScreenshotImageFormatMapping = {
         'jpg': 'jpg',
         'jpeg': 'jpg',
         'gif': 'gif'}
+SampleMode = set(['real_time', 'equivalent_time', 'segmented'])
 
-class agilent90000(agilentBaseScope):
+class agilent90000(agilentBaseInfiniium):
     "Agilent Infiniium 90000A/90000X series IVI oscilloscope driver"
     
     def __init__(self, *args, **kwargs):
@@ -78,7 +89,7 @@ class agilent90000(agilentBaseScope):
                 'DSAX92504A','DSAX92804A','DSAX93204A','MSOX91304A','MSOX91604A','MSOX92004A',
                 'MSOX92504A','MSOX92804A','MSOX93204A']
         
-        ivi.add_property(self, 'channels[].common_mode',
+        self._add_property('channels[].common_mode',
                         self._get_channel_common_mode,
                         self._set_channel_common_mode,
                         None,
@@ -86,7 +97,7 @@ class agilent90000(agilentBaseScope):
                         Turns on/off common mode for the channel.  Channels 2 and 4 may form a
                         common mode channel and channels 1 and 3 may form a common mode channel.
                         """))
-        ivi.add_property(self, 'channels[].differential',
+        self._add_property('channels[].differential',
                         self._get_channel_differential,
                         self._set_channel_differential,
                         None,
@@ -95,7 +106,7 @@ class agilent90000(agilentBaseScope):
                         a differential channel and channels 1 and 3 may form a differential
                         channel.
                         """))
-        ivi.add_property(self, 'channels[].differential_skew',
+        self._add_property('channels[].differential_skew',
                         self._get_channel_differential_skew,
                         self._set_channel_differential_skew,
                         None,
@@ -103,7 +114,7 @@ class agilent90000(agilentBaseScope):
                         Specifies the skew that is applied to the differential or common mode pair
                         of channels.  Units are seconds.
                         """))
-        ivi.add_property(self, 'channels[].display_auto',
+        self._add_property('channels[].display_auto',
                         self._get_channel_display_auto,
                         self._set_channel_display_auto,
                         None,
@@ -111,7 +122,7 @@ class agilent90000(agilentBaseScope):
                         Sets the differential and common mode display scale and offset to track
                         the acquisition scale and offset.  
                         """))
-        ivi.add_property(self, 'channels[].display_offset',
+        self._add_property('channels[].display_offset',
                         self._get_channel_display_offset,
                         self._set_channel_display_offset,
                         None,
@@ -119,7 +130,7 @@ class agilent90000(agilentBaseScope):
                         Sets the displayed offset of the selected channel.  Setting this parameter
                         disables display_auto.  Units are volts.  
                         """))
-        ivi.add_property(self, 'channels[].display_range',
+        self._add_property('channels[].display_range',
                         self._get_channel_display_range,
                         self._set_channel_display_range,
                         None,
@@ -127,47 +138,13 @@ class agilent90000(agilentBaseScope):
                         Sets the full scale vertical range of the selected channel.  Setting this
                         parameter disables display_auto.  Units are volts.  
                         """))
-        ivi.add_property(self, 'channels[].display_scale',
+        self._add_property('channels[].display_scale',
                         self._get_channel_display_scale,
                         self._set_channel_display_scale,
                         None,
                         ivi.Doc("""
                         Sets the displayed scale of the selected channel per division.  Setting
                         this parameter disables display_auto.  Units are volts.  
-                        """))
-        ivi.add_property(self, 'display.color_grade',
-                        self._get_display_color_grade,
-                        self._set_display_color_grade,
-                        None,
-                        ivi.Doc("""
-                        Controls color grade persistance.
-                        
-                        When in the color grade persistance mode, all waveforms are mapped into a
-                        database and shown with different colors representing varying number of
-                        hits in a pixel.  Vector display mode is disabled when color grade is
-                        enabled.
-                        """))
-        ivi.add_method(self, 'display.fetch_color_grade_levels',
-                        self._fetch_display_color_grade_levels,
-                        ivi.Doc("""
-                        Returns the range of hits represented by each color.  Fourteen values are
-                        returned, representing the minimum and maximum count for each of seven
-                        colors.  The values are returned in the following order:
-                        
-                        * White minimum value
-                        * White maximum value
-                        * Yellow minimum value
-                        * Yellow maximum value
-                        * Orange minimum value
-                        * Orange maximum value
-                        * Red minimum value
-                        * Red maximum value
-                        * Pink minimum value
-                        * Pink maximum value
-                        * Blue minimum value
-                        * Blue maximum value
-                        * Green minimum value
-                        * Green maximum value
                         """))
         
         self._init_channels()
@@ -219,39 +196,6 @@ class agilent90000(agilentBaseScope):
         self._write(":display:data? %s, screen, on, %s" % (format, 'invert' if invert else 'normal'))
         
         return self._read_ieee_block()
-    
-    def _get_display_vectors(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._display_vectors = bool(int(self._ask(":display:connect?")))
-            self._set_cache_valid()
-        return self._display_vectors
-    
-    def _set_display_vectors(self, value):
-        value = bool(value)
-        if not self._driver_operation_simulate:
-            self._write(":display:connect %d" % int(value))
-        self._display_vectors = value
-        self._set_cache_valid()
-    
-    def _get_display_color_grade(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._display_color_grade = bool(int(self._ask(":display:cgrade?")))
-            self._set_cache_valid()
-        return self._display_color_grade
-    
-    def _set_display_color_grade(self, value):
-        value = bool(value)
-        if not self._driver_operation_simulate:
-            self._write(":display:cgrade %d" % int(value))
-        self._display_color_grade = value
-        self._set_cache_valid()
-    
-    def _fetch_display_color_grade_levels(self):
-        if self._driver_operation_simulate():
-            return [0]*14
-        
-        lst = self._ask(":display:cgrade:levels?").split(',')
-        return [int(x) for x in lst]
     
     def _get_channel_common_mode(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
@@ -358,20 +302,6 @@ class agilent90000(agilentBaseScope):
         self._channel_display_scale[index] = value
         self._set_cache_valid(index=index)
     
-    def _get_channel_input_impedance(self, index):
-        index = ivi.get_index(self._analog_channel_name, index)
-        # fixed
-        self._channel_input_impedance[index] = 50
-        return self._channel_input_impedance[index]
-    
-    def _set_channel_input_impedance(self, index, value):
-        value = float(value)
-        index = ivi.get_index(self._analog_channel_name, index)
-        if value != 50:
-            raise Exception('Invalid impedance selection')
-        self._channel_input_impedance[index] = value
-        self._set_cache_valid(index=index)
-    
     def _measurement_fetch_waveform(self, index):
         index = ivi.get_index(self._channel_name, index)
         
@@ -435,8 +365,4 @@ class agilent90000(agilentBaseScope):
             self._write(":acquire:complete 100")
             self._write(":digitize")
             self._set_cache_valid(False, 'trigger_continuous')
-    
-    
-    
-
 

@@ -52,19 +52,19 @@ class agilent34410A(scpi.dmm.Base):
         self._identity_specification_minor_version = 1
         self._identity_supported_instrument_models = ['34410A', '34411A']
         
-        ivi.add_method(self, 'memory.save',
+        self._add_method('memory.save',
                         self._memory_save)
-        ivi.add_method(self, 'memory.recall',
+        self._add_method('memory.recall',
                         self._memory_recall)
-        ivi.add_method(self, 'memory.set_name',
+        self._add_method('memory.set_name',
                         self._set_memory_name)
-        ivi.add_method(self, 'memory.get_name',
+        self._add_method('memory.get_name',
                         self._get_memory_name)
     
-    def initialize(self, resource = None, id_query = False, reset = False, **keywargs):
+    def _initialize(self, resource = None, id_query = False, reset = False, **keywargs):
         "Opens an I/O session to the instrument."
         
-        super(agilent34410A, self).initialize(resource, id_query, reset, **keywargs)
+        super(agilent34410A, self)._initialize(resource, id_query, reset, **keywargs)
         
         # interface clear
         if not self._driver_operation_simulate:

@@ -157,13 +157,15 @@ TimebaseReferenceMapping = {
         'center': 'cent',
         'right': 'righ'}
 
-class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
-                scope.GlitchTrigger, scope.WidthTrigger, scope.AcLineTrigger,
-                scope.WaveformMeasurement, scope.MinMaxWaveform,
-                scope.ContinuousAcquisition, scope.AverageAcquisition,
-                scope.SampleMode, scope.AutoSetup,
-                scpi.common.Memory,
-                extra.common.SystemSetup, extra.common.Screenshot):
+class agilentBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.common.Reset,
+                       scpi.common.SelfTest, scpi.common.Memory,
+                       scope.Base, scope.TVTrigger,
+                       scope.GlitchTrigger, scope.WidthTrigger, scope.AcLineTrigger,
+                       scope.WaveformMeasurement, scope.MinMaxWaveform,
+                       scope.ContinuousAcquisition, scope.AverageAcquisition,
+                       scope.SampleMode, scope.AutoSetup,
+                       extra.common.SystemSetup, extra.common.Screenshot,
+                       ivi.Driver):
     "Agilent generic IVI oscilloscope driver"
     
     def __init__(self, *args, **kwargs):
@@ -182,6 +184,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
         super(agilentBaseScope, self).__init__(*args, **kwargs)
         
+        self._self_test_delay = 40
         self._memory_size = 10
         
         self._analog_channel_name = list()
@@ -204,6 +207,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._timebase_window_position = 0.0
         self._timebase_window_range = 5e-6
         self._timebase_window_scale = 500e-9
+        self._display_screenshot_image_format_mapping = ScreenshotImageFormatMapping
         self._display_vectors = True
         self._display_labels = True
         
@@ -222,7 +226,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                 'DSO7034B','DSO7052B','DSO7054B','DSO7104B','MSO7012B','MSO7014B','MSO7032B',
                 'MSO7034B','MSO7052B','MSO7054B','MSO7104B']
         
-        ivi.add_method(self, 'acquisition.segmented.analyze',
+        self._add_method('acquisition.segmented.analyze',
                         self._acquisition_segmented_analyze,
                         ivi.Doc("""
                         Calculates measurement statistics and/or infinite persistence over all
@@ -232,7 +236,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         must be stopped and in segmented acquisition mode, with either quick
                         measurements or infinite persistence on.
                         """))
-        ivi.add_property(self, 'acquisition.segmented.count',
+        self._add_property('acquisition.segmented.count',
                         self._get_acquisition_segmented_count,
                         self._set_acquisition_segmented_count,
                         None,
@@ -248,7 +252,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         oscilloscope. For example, an oscilloscope with 1M memory allows a maximum
                         of 250 segments.
                         """))
-        ivi.add_property(self, 'acquisition.segmented.index',
+        self._add_property('acquisition.segmented.index',
                         self._get_acquisition_segmented_index,
                         self._set_acquisition_segmented_index,
                         None,
@@ -268,7 +272,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         oscilloscope. For example, an oscilloscope with 1M memory allows a maximum
                         of 250 segments.
                         """))
-        ivi.add_property(self, 'acquisition.segmented.acquired_count',
+        self._add_property('acquisition.segmented.acquired_count',
                         self._get_acquisition_segmented_acquired_count,
                         None,
                         None,
@@ -283,7 +287,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         using the acquisition.segmented.count property, and data is acquired using
                         the :DIGitize, :SINGle, or :RUN commands.
                         """))
-        ivi.add_property(self, 'acquisition.segmented.time_tag',
+        self._add_property('acquisition.segmented.time_tag',
                         self._get_acquisition_segmented_time_tag,
                         None,
                         None,
@@ -291,7 +295,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         Returns the time tag of the currently selected segmented memory index. The
                         index is selected using the acquisition.segmented.index property.
                         """))
-        ivi.add_property(self, 'channels[].bw_limit',
+        self._add_property('channels[].bw_limit',
                         self._get_channel_bw_limit,
                         self._set_channel_bw_limit,
                         None,
@@ -299,14 +303,14 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         Commands an internal low-pass filter.  When the filter is on, the
                         bandwidth of the channel is limited to approximately 25 MHz.
                         """))
-        ivi.add_property(self, 'channels[].invert',
+        self._add_property('channels[].invert',
                         self._get_channel_invert,
                         self._set_channel_invert,
                         None,
                         ivi.Doc("""
                         Selects whether or not to invert the channel.
                         """))
-        ivi.add_property(self, 'channels[].label',
+        self._add_property('channels[].label',
                         self._get_channel_label,
                         self._set_channel_label,
                         None,
@@ -314,14 +318,14 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         Sets the channel label.  Setting a channel label also adds the label to
                         the nonvolatile label list.
                         """))
-        ivi.add_property(self, 'channels[].probe_id',
+        self._add_property('channels[].probe_id',
                         self._get_channel_probe_id,
                         None,
                         None,
                         ivi.Doc("""
                         Returns the type of probe attached to the channel.
                         """))
-        ivi.add_property(self, 'channels[].probe_skew',
+        self._add_property('channels[].probe_skew',
                         self._get_channel_probe_skew,
                         self._set_channel_probe_skew,
                         None,
@@ -331,7 +335,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         between channels.  This can be used to compensate for differences in cable
                         delay.  Units are seconds.
                         """))
-        ivi.add_property(self, 'channels[].scale',
+        self._add_property('channels[].scale',
                         self._get_channel_scale,
                         self._set_channel_scale,
                         None,
@@ -339,7 +343,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         Specifies the vertical scale, or units per division, of the channel.  Units
                         are volts.
                         """))
-        ivi.add_property(self, 'timebase.mode',
+        self._add_property('timebase.mode',
                         self._get_timebase_mode,
                         self._set_timebase_mode,
                         None,
@@ -351,7 +355,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         * 'xy': channels are plotted against each other, no timebase
                         * 'roll': data moves continuously from left to right
                         """))
-        ivi.add_property(self, 'timebase.reference',
+        self._add_property('timebase.reference',
                         self._get_timebase_reference,
                         self._set_timebase_reference,
                         None,
@@ -366,7 +370,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         * 'center'
                         * 'right'
                         """))
-        ivi.add_property(self, 'timebase.position',
+        self._add_property('timebase.position',
                         self._get_timebase_position,
                         self._set_timebase_position,
                         None,
@@ -376,7 +380,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         center and is set with the timebase.reference property. The maximum
                         position value depends on the time/division settings.
                         """))
-        ivi.add_property(self, 'timebase.range',
+        self._add_property('timebase.range',
                         self._get_timebase_range,
                         self._set_timebase_range,
                         None,
@@ -384,14 +388,14 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         Sets the full-scale horizontal time in seconds for the main window. The
                         range is 10 times the current time-per-division setting.
                         """))
-        ivi.add_property(self, 'timebase.scale',
+        self._add_property('timebase.scale',
                         self._get_timebase_scale,
                         self._set_timebase_scale,
                         None,
                         ivi.Doc("""
                         Sets the horizontal scale or units per division for the main window.
                         """))
-        ivi.add_property(self, 'timebase.window.position',
+        self._add_property('timebase.window.position',
                         self._get_timebase_window_position,
                         self._set_timebase_window_position,
                         None,
@@ -401,7 +405,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         determine the range for this command. The value for this command must
                         keep the zoomed view window within the main sweep range.
                         """))
-        ivi.add_property(self, 'timebase.window.range',
+        self._add_property('timebase.window.range',
                         self._get_timebase_window_range,
                         self._set_timebase_window_range,
                         None,
@@ -411,7 +415,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         division setting. The main sweep range determines the range for this
                         command. The maximum value is one half of the timebase.range value.
                         """))
-        ivi.add_property(self, 'timebase.window.scale',
+        self._add_property('timebase.window.scale',
                         self._get_timebase_window_scale,
                         self._set_timebase_window_scale,
                         None,
@@ -420,21 +424,21 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         main sweep scale determines the range for this command. The maximum value
                         is one half of the timebase.scale value.
                         """))
-        ivi.add_property(self, 'display.vectors',
+        self._add_property('display.vectors',
                         self._get_display_vectors,
                         self._set_display_vectors,
                         None,
                         ivi.Doc("""
                         When enabled, draws a line between consecutive waveform data points.
                         """))
-        ivi.add_property(self, 'display.labels',
+        self._add_property('display.labels',
                         self._get_display_labels,
                         self._set_display_labels,
                         None,
                         ivi.Doc("""
                         Turns the analog and digital channel labels on and off.
                         """))
-        ivi.add_method(self, 'display.clear',
+        self._add_method('display.clear',
                         self._display_clear,
                         ivi.Doc("""
                         Clears the display and resets all associated measurements. If the
@@ -442,7 +446,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         oscilloscope is running, all the data in active channels and functions is
                         erased; however, new data is displayed on the next acquisition.
                         """))
-        ivi.add_method(self, 'system.display_string',
+        self._add_method('system.display_string',
                         self._system_display_string,
                         ivi.Doc("""
                         Writes a string to the advisory line on the instrument display.  Send None
@@ -451,12 +455,12 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         
         self._init_channels()
     
-    def initialize(self, resource = None, id_query = False, reset = False, **keywargs):
+    def _initialize(self, resource = None, id_query = False, reset = False, **keywargs):
         "Opens an I/O session to the instrument."
         
         self._channel_count = self._analog_channel_count + self._digital_channel_count
         
-        super(agilentBaseScope, self).initialize(resource, id_query, reset, **keywargs)
+        super(agilentBaseScope, self)._initialize(resource, id_query, reset, **keywargs)
         
         # interface clear
         if not self._driver_operation_simulate:
@@ -473,74 +477,13 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         # reset
         if reset:
             self.utility.reset()
-        
-    
-    def _load_id_string(self):
-        if self._driver_operation_simulate:
-            self._identity_instrument_manufacturer = "Not available while simulating"
-            self._identity_instrument_model = "Not available while simulating"
-            self._identity_instrument_firmware_revision = "Not available while simulating"
-        else:
-            lst = self._ask("*IDN?").split(",")
-            self._identity_instrument_manufacturer = lst[0]
-            self._identity_instrument_model = lst[1]
-            self._identity_instrument_firmware_revision = lst[3]
-            self._set_cache_valid(True, 'identity_instrument_manufacturer')
-            self._set_cache_valid(True, 'identity_instrument_model')
-            self._set_cache_valid(True, 'identity_instrument_firmware_revision')
-    
-    def _get_identity_instrument_manufacturer(self):
-        if self._get_cache_valid():
-            return self._identity_instrument_manufacturer
-        self._load_id_string()
-        return self._identity_instrument_manufacturer
-    
-    def _get_identity_instrument_model(self):
-        if self._get_cache_valid():
-            return self._identity_instrument_model
-        self._load_id_string()
-        return self._identity_instrument_model
-    
-    def _get_identity_instrument_firmware_revision(self):
-        if self._get_cache_valid():
-            return self._identity_instrument_firmware_revision
-        self._load_id_string()
-        return self._identity_instrument_firmware_revision
+
     
     def _utility_disable(self):
         pass
     
-    def _utility_error_query(self):
-        error_code = 0
-        error_message = "No error"
-        if not self._driver_operation_simulate:
-            error_code, error_message = self._ask(":system:error?").split(',')
-            error_code = int(error_code)
-            error_message = error_message.strip(' "')
-        return (error_code, error_message)
-    
     def _utility_lock_object(self):
         pass
-    
-    def _utility_reset(self):
-        if not self._driver_operation_simulate:
-            self._write("*RST")
-            self.driver_operation.invalidate_all_attributes()
-    
-    def _utility_reset_with_defaults(self):
-        self._utility_reset()
-    
-    def _utility_self_test(self):
-        code = 0
-        message = "Self test passed"
-        if not self._driver_operation_simulate:
-            self._write("*TST?")
-            # wait for test to complete
-            time.sleep(40)
-            code = int(self._read())
-            if code != 0:
-                message = "Self test failed"
-        return (code, message)
     
     def _utility_unlock_object(self):
         pass
@@ -616,10 +559,10 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         if self._driver_operation_simulate:
             return b''
         
-        if format not in ScreenshotImageFormatMapping:
+        if format not in self._display_screenshot_image_format_mapping:
             raise ivi.ValueNotSupportedException()
         
-        format = ScreenshotImageFormatMapping[format]
+        format = self._display_screenshot_image_format_mapping[format]
         
         self._write(":hardcopy:inksaver %d" % int(bool(invert)))
         self._write(":display:data? %s" % format)
@@ -1012,7 +955,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     def _get_channel_coupling(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_enabled[index] = self._ask(":%s:coupling?" % self._channel_name[index]).lower()
+            self._channel_coupling[index] = self._ask(":%s:coupling?" % self._channel_name[index]).lower()
             self._set_cache_valid(index=index)
         return self._channel_coupling[index]
     
@@ -1504,7 +1447,7 @@ class agilentBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         return data
     
     def _measurement_read_waveform_min_max(self, index, maximum_time):
-        return _measurement_fetch_waveform_min_max(index)
+        return self._measurement_fetch_waveform_min_max(index)
     
     def _get_trigger_continuous(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():

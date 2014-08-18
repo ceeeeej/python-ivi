@@ -78,14 +78,7 @@ def set_prefer_pyvisa(value=True):
 from .version import __version__
 version = __version__
 
-class X(object):
-    def __init__(self,_d={},**kwargs):
-        kwargs.update(_d)
-        self.__dict__=kwargs
-
-
 # Exceptions
-
 class IviException(Exception): pass
 class IviDriverException(IviException): pass
 class FileFormatException(IviDriverException): pass
@@ -117,6 +110,15 @@ class ValueNotSupportedException(IviDriverException): pass
 
 
 def get_index(l, i):
+    """Validate index from list or dict of possible values"""
+    if type(l) is dict:
+        try:
+            return l[i]
+        except KeyError:
+            if type(i) is int:
+                raise SelectorRangeException()
+            raise SelectorNameException()
+
     if i in l:
         return l.index(i)
     if type(i) == int:
@@ -126,67 +128,92 @@ def get_index(l, i):
     raise SelectorNameException()
 
 
+def get_index_dict(l):
+    """Construct a dict object for faster index lookups"""
+    d = {}
+    for i in range(len(l)):
+        d[l[i]] = i
+        d[i] = i
+    return d
+
+
 class PropertyCollection(object):
     "A building block to create hierarchical trees of methods and properties"
     def __init__(self):
-        object.__setattr__(self, '_props', dict())
-        object.__setattr__(self, '_docs', dict())
-        object.__setattr__(self, '_locked', False)
+        d = object.__getattribute__(self, '__dict__')
+        d.setdefault('_props', dict())
+        d.setdefault('_docs', dict())
+        d.setdefault('_locked', False)
     
     def _add_property(self, name, fget=None, fset=None, fdel=None, doc=None):
         "Add a managed property"
-        object.__getattribute__(self, '_props')[name] = (fget, fset, fdel)
-        object.__getattribute__(self, '_docs')[name] = doc
-        object.__setattr__(self, name, None)
+        d = object.__getattribute__(self, '__dict__')
+        d['_props'][name] = (fget, fset, fdel)
+        d['_docs'][name] = doc
+        d[name] = None
     
     def _add_method(self, name, f=None, doc=None):
         "Add a managed method"
-        object.__getattribute__(self, '_docs')[name] = doc
-        object.__setattr__(self, name, f)
+        d = object.__getattribute__(self, '__dict__')
+        d['_docs'][name] = doc
+        d[name] = f
     
     def _del_property(self, name):
         "Remove managed property or method"
-        del object.__getattribute__(self, '_props')[name]
-        del object.__getattribute__(self, '_docs')[name]
-        del object.__dict__[name]
+        d = object.__getattribute__(self, '__dict__')
+        del d['_props'][name]
+        del d['_docs'][name]
+        del d[name]
     
     def _lock(self, lock=True):
         "Set lock state to prevent creation or deletion of unmanaged members"
-        object.__setattr__(self, '_locked', lock)
+        d = object.__getattribute__(self, '__dict__')
+        d['_locked'] = lock
     
     def _unlock(self):
         "Unlock object to allow creation or deletion of unmanaged members, equivalent to _lock(False)"
         self._lock(False)
         
     def __getattribute__(self, name):
-        if name in object.__getattribute__(self, '_props'):
-            f = object.__getattribute__(self, '_props')[name][0]
+        if name == '__dict__':
+            return object.__getattribute__(self, name)
+        d = object.__getattribute__(self, '__dict__')
+        d.setdefault('_props', dict())
+        d.setdefault('_locked', False)
+        if name in d['_props']:
+            f = d['_props'][name][0]
             if f is None:
                 raise AttributeError("unreadable attribute")
             return f()
         return object.__getattribute__(self, name)
         
     def __setattr__(self, name, value):
-        if name in object.__getattribute__(self, '_props'):
-            f = object.__getattribute__(self, '_props')[name][1]
+        d = object.__getattribute__(self, '__dict__')
+        d.setdefault('_props', dict())
+        d.setdefault('_locked', False)
+        if name in d['_props']:
+            f = d['_props'][name][1]
             if f is None:
                 raise AttributeError("can't set attribute")
             f(value)
             return
-        if name not in object.__dict__ and self._locked:
+        if name not in d and self._locked:
             raise AttributeError("locked")
         object.__setattr__(self, name, value)
         
     def __delattr__(self, name):
-        if name in object.__getattribute__(self, '_props'):
-            f = object.__getattribute__(self, '_props')[name][2]
+        d = object.__getattribute__(self, '__dict__')
+        d.setdefault('_props', dict())
+        d.setdefault('_locked', False)
+        if name in d['_props']:
+            f = d['_props'][name][2]
             if f is None:
                 raise AttributeError("can't delete attribute")
             f()
             return
-        if name not in object.__dict__ and self._locked:
+        if name not in d and self._locked:
             raise AttributeError("locked")
-        del object.__dict__[name]
+        object.__delattr__(self, name)
         
 
 class IndexedPropertyCollection(object):
@@ -195,6 +222,7 @@ class IndexedPropertyCollection(object):
         self._props = dict()
         self._docs = dict()
         self._indicies = list()
+        self._indicies_dict = dict()
         self._objs = list()
     
     def _add_property(self, name, fget=None, fset=None, fdel=None, doc=None, props = None, docs = None):
@@ -283,19 +311,79 @@ class IndexedPropertyCollection(object):
     def _set_list(self, l):
         "Set a list of allowable indicies as an associative array"
         self._indicies = list(l)
+        self._indicies_dict = get_index_dict(self._indicies)
         self._objs = list()
         for i in range(len(self._indicies)):
             self._objs.append(self._build_obj(self._props, self._docs, i))
     
     def __getitem__(self, key):
-        i = get_index(self._indicies, key)
+        i = get_index(self._indicies_dict, key)
         return self._objs[i]
+
+    def __iter__(self):
+        return self._objs.__iter__()
     
     def __len__(self):
         return len(self._indicies)
         
     def count(self):
         return len(self._indicies)
+
+
+class IviContainer(PropertyCollection):
+    def __init__(self, *args, **kwargs):
+        super(IviContainer, self).__init__(*args, **kwargs)
+
+    def _add_attribute(self, name, attr, doc = None):
+        cur_obj = self
+
+        # iterate over name
+        rest = name
+        while len(rest) > 0:
+            # split at first dot
+            l = rest.split('.',1)
+            base = l[0]
+            rest = ''
+
+            # save the rest
+            if len(l) > 1:
+                rest = l[1]
+
+                # is it an indexed object?
+                k = base.find('[')
+                if k > 0:
+                    # if so, stop here and add an indexed property collection
+                    base = base[:k]
+                    cur_obj.__dict__.setdefault(base, IndexedPropertyCollection())
+                    cur_obj = cur_obj.__dict__[base]
+                    base = rest
+                    rest = ''
+                else:
+                    # if not, add a property collection and keep going
+                    cur_obj.__dict__.setdefault(base, PropertyCollection())
+                    cur_obj = cur_obj.__dict__[base]
+
+        if type(doc) == Doc:
+            doc.name = name
+
+        if cur_obj == self:
+            if type(attr) == tuple:
+                fget, fset, fdel = attr
+                PropertyCollection._add_property(self, base, fget, fset, fdel, doc)
+            else:
+                PropertyCollection._add_method(self, base, attr, doc)
+        else:
+            if type(attr) == tuple:
+                fget, fset, fdel = attr
+                cur_obj._add_property(base, fget, fset, fdel, doc)
+            else:
+                cur_obj._add_method(base, attr, doc)
+
+    def _add_method(self, name, f, doc = None):
+        self._add_attribute(name, f, doc)
+
+    def _add_property(self, name, fget, fset = None, fdel = None, doc = None):
+        self._add_attribute(name, (fget, fset, fdel), doc)
 
 
 class Doc(object):
@@ -322,42 +410,7 @@ class Doc(object):
 
 
 def add_attribute(obj, name, attr, doc = None):
-    cur_obj = obj
-    
-    # iterate over name
-    rest = name
-    while len(rest) > 0:
-        # split at first dot
-        l = rest.split('.',1)
-        base = l[0]
-        rest = ''
-        
-        # save the rest
-        if len(l) > 1:
-            rest = l[1]
-            
-            # is it an indexed object?
-            k = base.find('[')
-            if k > 0:
-                # if so, stop here and add an indexed property collection
-                base = base[:k]
-                cur_obj.__dict__.setdefault(base, IndexedPropertyCollection())
-                cur_obj = cur_obj.__dict__[base]
-                base = rest
-                rest = ''
-            else:
-                # if not, add a property collection and keep going
-                cur_obj.__dict__.setdefault(base, PropertyCollection())
-                cur_obj = cur_obj.__dict__[base]
-    
-    if type(doc) == Doc:
-        doc.name = name
-    
-    if type(attr) == tuple:
-        fget, fset, fdel = attr
-        cur_obj._add_property(base, fget, fset, fdel, doc)
-    else:
-        cur_obj._add_method(base, attr, doc)
+    IviContainer._add_attribute(obj, name, attr, doc)
 
 
 def add_method(obj, name, f, doc = None):
@@ -632,7 +685,7 @@ def help(obj=None, itm=None, complete=False, indent=0):
             """))
 
 
-class DriverOperation(object):
+class DriverOperation(IviContainer):
     "Inherent IVI methods for driver operation"
     
     def __init__(self, *args, **kwargs):
@@ -651,7 +704,7 @@ class DriverOperation(object):
         self._driver_operation_interchange_warnings = list()
         self._driver_operation_coercion_records = list()
         
-        add_property(self, 'driver_operation.cache',
+        self._add_property('driver_operation.cache',
                         self._get_driver_operation_cache,
                         self._set_driver_operation_cache,
                         None,
@@ -668,7 +721,7 @@ class DriverOperation(object):
                         override both the default value and the value that the user specifies in
                         the IVI configuration store.
                         """)
-        add_property(self, 'driver_operation.driver_setup',
+        self._add_property('driver_operation.driver_setup',
                         self._get_driver_operation_driver_setup,
                         None,
                         None,
@@ -682,7 +735,7 @@ class DriverOperation(object):
                         The string that this attribute returns does not have a predefined maximum
                         length.
                         """)
-        add_property(self, 'driver_operation.interchange_check',
+        self._add_property('driver_operation.interchange_check',
                         self._get_driver_operation_interchange_check,
                         self._set_driver_operation_interchange_check,
                         None,
@@ -720,7 +773,7 @@ class DriverOperation(object):
                         default value and the value that the userspecifies in the IVI
                         configuration store.
                         """)
-        add_property(self, 'driver_operation.logical_name',
+        self._add_property('driver_operation.logical_name',
                         self._get_driver_operation_logical_name,
                         None,
                         None,
@@ -734,7 +787,7 @@ class DriverOperation(object):
                         The string that this attribute returns contains a maximum of 256
                         characters including the NULL character.
                         """)
-        add_property(self, 'driver_operation.query_instrument_status',
+        self._add_property('driver_operation.query_instrument_status',
                         self._get_driver_operation_query_instrument_status,
                         self._set_driver_operation_query_instrument_status,
                         None,
@@ -754,7 +807,7 @@ class DriverOperation(object):
                         override both the default value and the value that the user specifies in
                         the IVI configuration store.
                         """)
-        add_property(self, 'driver_operation.range_check',
+        self._add_property('driver_operation.range_check',
                         self._get_driver_operation_range_check,
                         self._set_driver_operation_range_check,
                         None,
@@ -774,7 +827,7 @@ class DriverOperation(object):
                         Initialize function allows the user to override both the default value and
                         the value that the user specifies in the IVI configuration store.
                         """)
-        add_property(self, 'driver_operation.record_coercions',
+        self._add_property('driver_operation.record_coercions',
                         self._get_driver_operation_record_coercions,
                         self._set_driver_operation_record_coercions,
                         None,
@@ -801,7 +854,7 @@ class DriverOperation(object):
                         override both the default value and the value that the user specifies in
                         the IVI configuration store.
                         """)
-        add_property(self, 'driver_operation.io_resource_descriptor',
+        self._add_property('driver_operation.io_resource_descriptor',
                         self._get_driver_operation_io_resource_descriptor,
                         None,
                         None,
@@ -815,7 +868,7 @@ class DriverOperation(object):
                         The string that this attribute returns contains a maximum of 256 characters
                         including the NULL character.
                         """)
-        add_property(self, 'driver_operation.simulate',
+        self._add_property('driver_operation.simulate',
                         self._get_driver_operation_simulate,
                         None,
                         None,
@@ -835,7 +888,7 @@ class DriverOperation(object):
                         override both the default value and the value that the user specifies in
                         the IVI configuration store.
                         """)
-        add_method(self, 'driver_operation.clear_interchange_warnings',
+        self._add_method('driver_operation.clear_interchange_warnings',
                         self._driver_operation_clear_interchange_warnings,
                         """
                         This function clears the list of interchangeability warnings that the IVI
@@ -848,7 +901,7 @@ class DriverOperation(object):
                         Refer to the Interchange Check attribute for more information on
                         interchangeability checking.
                         """)
-        add_method(self, 'driver_operation.get_next_coercion_record',
+        self._add_method('driver_operation.get_next_coercion_record',
                         self._driver_operation_get_next_coercion_record,
                         """
                         If the Record Value Coercions attribute is set to True, the IVI specific
@@ -884,7 +937,7 @@ class DriverOperation(object):
                             9.0 to 10.0.
                         
                         """)
-        add_method(self, 'driver_operation.get_next_interchange_warning',
+        self._add_method('driver_operation.get_next_interchange_warning',
                         self._driver_operation_get_next_interchange_warning,
                         """
                         If the Interchange Check attribute is set to True, the IVI specific driver
@@ -906,13 +959,13 @@ class DriverOperation(object):
                         Refer to the Interchange Check attribute for more information on
                         interchangeability checking.
                         """)
-        add_method(self, 'driver_operation.invalidate_all_attributes',
+        self._add_method('driver_operation.invalidate_all_attributes',
                         self._driver_operation_invalidate_all_attributes,
                         """
                         This function invalidates the cached values of all attributes for the
                         session.
                         """)
-        add_method(self, 'driver_operation.reset_interchange_check',
+        self._add_method('driver_operation.reset_interchange_check',
                         self._driver_operation_reset_interchange_check,
                         """
                         This function resets the interchangeability checking algorithms of the IVI
@@ -1016,15 +1069,14 @@ class DriverOperation(object):
     
     def _driver_operation_invalidate_all_attributes(self):
         pass
-    
+
     def _driver_operation_reset_interchange_check(self):
         pass
-    
-    
 
-class DriverIdentity(object):
+
+class DriverIdentity(IviContainer):
     "Inherent IVI methods for identification"
-    
+
     def __init__(self, *args, **kwargs):
         super(DriverIdentity, self).__init__(*args, **kwargs)
         
@@ -1032,15 +1084,15 @@ class DriverIdentity(object):
         self._identity_identifier = ""
         self._identity_revision = ""
         self._identity_vendor = ""
-        self._identity_instrument_manufacturer = ""
-        self._identity_instrument_model = ""
-        self._identity_instrument_firmware_revision = ""
+        self._identity_instrument_manufacturer = "Cannot query from instrument"
+        self._identity_instrument_model = "Cannot query from instrument"
+        self._identity_instrument_firmware_revision = "Cannot query from instrument"
         self._identity_specification_major_version = 0
         self._identity_specification_minor_version = 0
         self._identity_supported_instrument_models = list()
         self.__dict__.setdefault('_identity_group_capabilities', list())
         
-        add_property(self, 'identity.description',
+        self._add_property('identity.description',
                         self._get_identity_description,
                         None,
                         None,
@@ -1049,7 +1101,7 @@ class DriverIdentity(object):
                         
                         The string that this attribute returns has no maximum size.
                         """)
-        add_property(self, 'identity.identifier',
+        self._add_property('identity.identifier',
                         self._get_identity_identifier,
                         None,
                         None,
@@ -1058,7 +1110,7 @@ class DriverIdentity(object):
                         component. The string that this attribute returns contains a maximum of 32
                         characters including the NULL character.
                         """)
-        add_property(self, 'identity.revision',
+        self._add_property('identity.revision',
                         self._get_identity_revision,
                         None,
                         None,
@@ -1069,7 +1121,7 @@ class DriverIdentity(object):
                         
                         The string that this attribute returns has no maximum size.
                         """)
-        add_property(self, 'identity.vendor',
+        self._add_property('identity.vendor',
                         self._get_identity_vendor,
                         None,
                         None,
@@ -1078,7 +1130,7 @@ class DriverIdentity(object):
                         
                         The string that this attribute returns has no maximum size.
                         """)
-        add_property(self, 'identity.instrument_manufacturer',
+        self._add_property('identity.instrument_manufacturer',
                         self._get_identity_instrument_manufacturer,
                         None,
                         None,
@@ -1089,20 +1141,19 @@ class DriverIdentity(object):
                         identity.
                         
                         In some cases, it is not possible for the specific driver to query the
-                        firmware revision of the instrument. This can occur when the Simulate
-                        attribute is set to True or if the instrument is not capable of returning
-                        the firmware revision. For these cases, the specific driver returns
-                        defined strings for this attribute. If the Simulate attribute is set to
-                        True, the specific driver returns "Not available while simulating" as the
-                        value of this attribute. If the instrument is not capable of returning the
-                        firmware version and the Simulate attribute is set to False, the specific
-                        driver returns "Cannot query from instrument" as the value of this
-                        attribute.
+                        manufacturer of the instrument. This can occur when the Simulate attribute
+                        is set to True or if the instrument is not capable of returning the
+                        manufacturer. For these cases, the specific driver returns defined strings
+                        for this attribute. If the Simulate attribute is set to True, the specific
+                        driver returns "Not available while simulating" as the value of this
+                        attribute. If the instrument is not capable of returning the manufacturer
+                        and the Simulate attribute is set to False, the specific driver returns
+                        "Cannot query from instrument" as the value of this attribute.
                         
                         The string that this attribute returns does not have a predefined maximum
                         length.
                         """)
-        add_property(self, 'identity.instrument_model',
+        self._add_property('identity.instrument_model',
                         self._get_identity_instrument_model,
                         None,
                         None,
@@ -1112,20 +1163,19 @@ class DriverIdentity(object):
                         string indicating that it cannot query the instrument identity.
                         
                         In some cases, it is not possible for the specific driver to query the
-                        firmware revision of the instrument. This can occur when the Simulate
-                        attribute is set to True or if the instrument is not capable of returning
-                        the firmware revision. For these cases, the specific driver returns
-                        defined strings for this attribute. If the Simulate attribute is set to
-                        True, the specific driver returns "Not available while simulating" as the
-                        value of this attribute. If the instrument is not capable of returning the
-                        firmware version and the Simulate attribute is set to False, the specific
-                        driver returns "Cannot query from instrument" as the value of this
-                        attribute.
+                        model of the instrument. This can occur when the Simulate attribute is
+                        set to True or if the instrument is not capable of returning the model.
+                        For these cases, the specific driver returns defined strings for this
+                        attribute. If the Simulate attribute is set to True, the specific driver
+                        returns "Not available while simulating" as the value of this attribute.
+                        If the instrument is not capable of returning the model and the Simulate
+                        attribute is set to False, the specific driver returns "Cannot query
+                        from instrument" as the value of this attribute.
                         
                         The string that this attribute returns does not have a predefined maximum
                         length.
                         """)
-        add_property(self, 'identity.instrument_firmware_revision',
+        self._add_property('identity.instrument_firmware_revision',
                         self._get_identity_instrument_firmware_revision,
                         None,
                         None,
@@ -1150,7 +1200,7 @@ class DriverIdentity(object):
                         The string that this attribute returns does not have a predefined maximum
                         length.
                         """)
-        add_property(self, 'identity.specification_major_version',
+        self._add_property('identity.specification_major_version',
                         self._get_identity_specification_major_version,
                         None,
                         None,
@@ -1162,7 +1212,7 @@ class DriverIdentity(object):
                         If the software component is not compliant with a class specification, the
                         software component returns zero as the value of this attribute.
                         """)
-        add_property(self, 'identity.specification_minor_version',
+        self._add_property('identity.specification_minor_version',
                         self._get_identity_specification_minor_version,
                         None,
                         None,
@@ -1174,7 +1224,7 @@ class DriverIdentity(object):
                         If the software component is not compliant with a class specification, the
                         software component returns zero as the value of this attribute.
                         """)
-        add_property(self, 'identity.supported_instrument_models',
+        self._add_property('identity.supported_instrument_models',
                         self._get_identity_supported_instrument_models,
                         None,
                         None,
@@ -1191,7 +1241,7 @@ class DriverIdentity(object):
                         The string that this attribute returns does not have a predefined maximum
                         length.
                         """)
-        add_property(self, 'identity.group_capabilities',
+        self._add_property('identity.group_capabilities',
                         self._get_identity_group_capabilities,
                         None,
                         None,
@@ -1208,7 +1258,7 @@ class DriverIdentity(object):
                         The string that this attribute returns does not have a predefined maximum
                         length.
                         """)
-        add_method(self, 'identity.get_group_capabilities',
+        self._add_method('identity.get_group_capabilities',
                         self._identity_get_group_capabilities,
                         """
                         Returns a list of names of class capability groups that the IVI specific
@@ -1219,7 +1269,7 @@ class DriverIdentity(object):
                         If the IVI specific driver does not comply with an IVI class specification,
                         the specific driver returns an array with zero elements.
                         """)
-        add_method(self, 'identity.get_supported_instrument_models',
+        self._add_method('identity.get_supported_instrument_models',
                         self._identity_get_supported_instrument_models,
                         """
                         Returns a list of names of instrument models with which the IVI specific
@@ -1276,17 +1326,15 @@ class DriverIdentity(object):
     
     def _identity_get_supported_instrument_models(self):
         return self._identity_supported_instrument_models
-    
-    
 
-class DriverUtility(object):
+
+class DriverUtility(IviContainer):
     "Inherent IVI utility methods"
-    
+
     def __init__(self, *args, **kwargs):
         super(DriverUtility, self).__init__(*args, **kwargs)
         
-        self.__dict__.setdefault('utility', PropertyCollection())
-        add_method(self, 'utility.disable',
+        self._add_method('utility.disable',
                         self._utility_disable,
                         """
                         The Disable operation places the instrument in a quiescent state as
@@ -1302,7 +1350,7 @@ class DriverUtility(object):
                         for each instrument class. Refer to the IVI class specifications for more
                         information on the behavior of this function.
                         """)
-        add_method(self, 'utility.error_query',
+        self._add_method('utility.error_query',
                         self._utility_error_query,
                         """
                         Queries the instrument and returns instrument specific error information.
@@ -1318,7 +1366,7 @@ class DriverUtility(object):
                         
                         The method returns a tuple containing the error code and error message.
                         """)
-        add_method(self, 'utility.lock_object',
+        self._add_method('utility.lock_object',
                         self._utility_lock_object,
                         """
                         This function obtains a multithread lock for this instance of the driver.
@@ -1345,7 +1393,7 @@ class DriverUtility(object):
                         always obtain the same lock that is used internally by the IVI driver to
                         guard individual method calls.
                         """)
-        add_method(self, 'utility.reset',
+        self._add_method('utility.reset',
                         self._utility_reset,
                         """
                         This function performs the following actions:
@@ -1363,7 +1411,7 @@ class DriverUtility(object):
                         reset the device and perform these additional operations, call the Reset
                         With Defaults function instead of the Reset function.
                         """)
-        add_method(self, 'utility.reset_with_defaults',
+        self._add_method('utility.reset_with_defaults',
                         self._utility_reset_with_defaults,
                         """
                         The Reset With Defaults function performs the same operations that the
@@ -1385,7 +1433,7 @@ class DriverUtility(object):
                         that they attain when the user calls the Initialize function, the user
                         must first call the Close function and then the Initialize function.
                         """)
-        add_method(self, 'utility.self_test',
+        self._add_method('utility.self_test',
                         self._utility_self_test,
                         """
                         Causes the instrument to perform a self test. Self Test waits for the
@@ -1398,7 +1446,7 @@ class DriverUtility(object):
                        
                         Otherwise, the function returns a tuple of the result code and message.
                         """)
-        add_method(self, 'utility.unlock_object',
+        self._add_method('utility.unlock_object',
                         self._utility_unlock_object,
                         """
                         This function releases a lock that the Lock Session function acquires.
@@ -1431,12 +1479,11 @@ class DriverUtility(object):
     
     def _utility_unlock_object(self):
         pass
-    
-    
+
 
 class Driver(DriverOperation, DriverIdentity, DriverUtility):
     "Inherent IVI methods for all instruments"
-    
+
     def __init__(self, resource = None, id_query = False, reset = False, *args, **kwargs):
         # process out args for initialize
         kw = {}
@@ -1448,12 +1495,13 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
         self._interface = None
         self._initialized = False
         self.__dict__.setdefault('_instrument_id', '')
-        self._cache_valid = list()
+        self._cache_valid = dict()
         
         super(Driver, self).__init__(*args, **kwargs)
         
-        self.__dict__.setdefault('_docs', dict())
-        self._docs['initialize'] = """
+        self._add_method('initialize',
+                        self._initialize,
+                        """
                         The user must call the Initialize function prior to calling other IVI
                         driver functions that access the instrument. The Initialize function is
                         called automatically by the constructor if a resource string is passed as
@@ -1589,8 +1637,13 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                         
                         If the user attempts to initialize the instrument a second time without
                         first calling the Close function, the Initialize function returns the
-                        Already Initialized error."""
-        self._docs['initialized'] = """
+                        Already Initialized error.
+                        """)
+        self._add_property('initialized',
+                        self._get_initialized,
+                        None,
+                        None,
+                        """
                         Returns a value that indicates whether the IVI specific driver is in the
                         initialized state. After the specific driver is instantiated and before
                         the Initialize function successfully executes, this attribute returns
@@ -1612,8 +1665,10 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                         * Component Vendor
                         * Initialized
                         * Supported Instrument Models
+                        """)
+        self._add_method('close',
+                        self._close,
                         """
-        self._docs['close'] = """
                         When the user finishes using a Python IVI driver, the user should call
                         either the Close method or __del__.  Note that __del__ will call close
                         automatically.  
@@ -1624,20 +1679,20 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                           access the instrument until the user calls the Initialize function
                           again.
                         * May deallocate internal resources used by the IVI session.
-                        """
-        
+                        """)
+
         # inherit prefer_pyvisa from global setting
         self._prefer_pyvisa = _prefer_pyvisa
-        
+
         # call initialize if resource string or other args present
         self._initialized_from_constructor = False
         if resource is not None or len(kw) > 0:
             self._initialized_from_constructor = True
             self.initialize(resource, id_query, reset, **kw)
-    
-    def initialize(self, resource = None, id_query = False, reset = False, **keywargs):
+
+    def _initialize(self, resource = None, id_query = False, reset = False, **keywargs):
         "Opens an I/O session to the instrument."
-        
+
         # decode options
         for op in keywargs:
             val = keywargs[op]
@@ -1659,7 +1714,7 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                 self._prefer_pyvisa = bool(val)
             else:
                 raise UnknownOptionException('Invalid option')
-        
+
         # process resource
         if self._driver_operation_simulate:
             print("Simulating; ignoring resource")
@@ -1691,7 +1746,7 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                     self._interface = pyvisa.PyVisaInstrument(resource)
                 else:
                     raise IOException('Invalid resource string')
-            
+
             res_type = m.group('type').upper()
             res_prefix = m.group('prefix')
             res_arg1 = m.group('arg1')
@@ -1727,20 +1782,12 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                     raise IOException('Cannot use resource type %s' % res_type)
             elif res_type == 'GPIB':
                 # GPIB connection
-                index = res_prefix[4:]
-                if len(index) > 0:
-                    index = int(index)
-                else:
-                    index = 0
-                
-                addr = int(res_arg1)
-                
                 if self._prefer_pyvisa and 'pyvisa' in globals():
                     # connect with PyVISA
                     self._interface = pyvisa.PyVisaInstrument(resource)
                 elif 'linuxgpib' in globals():
                     # connect with linux-gpib
-                    self._interface = linuxgpib.LinuxGpibInstrument(index, addr)
+                    self._interface = linuxgpib.LinuxGpibInstrument(resource)
                 elif 'pyvisa' in globals():
                     # connect with PyVISA
                     self._interface = pyvisa.PyVisaInstrument(resource)
@@ -1748,28 +1795,12 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                     raise IOException('Cannot use resource type %s' % res_type)
             elif res_type == 'ASRL':
                 # Serial connection
-                port = 0
-                baudrate = 9600
-                
-                index = res_prefix[4:]
-                if len(index) > 0:
-                    port = int(index)
-                else:
-                    # port[,baud[,nps]]
-                    # n = data bits (5,6,7,8)
-                    # p = parity (n,o,e,m,s)
-                    # s = stop bits (1,1.5,2)
-                    t = res_arg1.split(',')
-                    port = t[0]
-                    if len(t) > 1:
-                       baudrate = int(t[1])
-                
                 if self._prefer_pyvisa and 'pyvisa' in globals():
                     # connect with PyVISA
                     self._interface = pyvisa.PyVisaInstrument(resource)
                 elif 'pyserial' in globals():
                     # connect with PySerial
-                    self._interface = pyserial.SerialInstrument(port,baudrate=baudrate)
+                    self._interface = pyserial.SerialInstrument(resource)
                 elif 'pyvisa' in globals():
                     # connect with PyVISA
                     self._interface = pyvisa.PyVisaInstrument(resource)
@@ -1781,9 +1812,9 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
                 self._interface = pyvisa.PyVisaInstrument(resource)
             else:
                 raise IOException('Unknown resource type %s' % res_type)
-            
-            _driver_operation_io_resource_descriptor = resource
-            
+
+            self._driver_operation_io_resource_descriptor = resource
+
         elif 'vxi11' in globals() and resource.__class__ == vxi11.Instrument:
             # Got a vxi11 instrument, can use it as is
             self._interface = resource
@@ -1796,29 +1827,27 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
         else:
             # don't have a usable resource
             raise IOException('Invalid resource')
-        
+
         self.driver_operation.invalidate_all_attributes()
-        
+
         self._initialized = True
-        
-        
-    def close(self):
+
+
+    def _close(self):
         "Closes an IVI session"
         if self._interface:
             try:
                 self._interface.close()
             except:
                 pass
-        
+
         self._interface = None
         self._initialized = False
-        
-        
+
+
     def _get_initialized(self):
         "Returnes initialization state of driver"
         return self._initialized
-        
-    initialized = property(lambda self: self._get_initialized())
     
     def _get_cache_tag(self, tag=None, skip=1):
         if tag is None:
@@ -1833,29 +1862,28 @@ class Driver(DriverOperation, DriverIdentity, DriverUtility):
         if tag[0] == "_": tag = tag[1:]
         
         return tag
-    
+
     def _get_cache_valid(self, tag=None, index=-1, skip_disable=False):
         if not skip_disable and not self._driver_operation_cache:
             return False
         tag = self._get_cache_tag(tag, 2)
         if index >= 0:
             tag = tag + '_%d' % index
-        return tag in self._cache_valid
-    
+        try:
+            return self._cache_valid[tag]
+        except KeyError:
+            self._cache_valid[tag] = False
+            return False
+
     def _set_cache_valid(self, valid=True, tag=None, index=-1):
         tag = self._get_cache_tag(tag, 2)
         if index >= 0:
             tag = tag + '_%d' % index
-        if valid:
-            if tag not in self._cache_valid:
-                self._cache_valid.append(tag)
-        else:
-            if tag in self._cache_valid:
-                self._cache_valid.remove(tag)
-    
+        self._cache_valid[tag] = valid
+
     def _driver_operation_invalidate_all_attributes(self):
-        self._cache_valid = list()
-    
+        self._cache_valid = dict()
+
     def _write_raw(self, data):
         "Write binary data to instrument"
         if self._driver_operation_simulate:

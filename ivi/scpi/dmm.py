@@ -24,11 +24,11 @@ THE SOFTWARE.
 
 """
 
-import time
 import math
 
 from .. import ivi
 from .. import dmm
+from . import common
 
 MeasurementFunctionMapping = {
         'dc_volts': 'volt',
@@ -77,7 +77,9 @@ TriggerSourceMapping = {
         'external': 'ext',
         'immediate': 'imm'}
 
-class Base(ivi.Driver, dmm.Base):
+class Base(common.IdnCommand, common.ErrorQuery, common.Reset, common.SelfTest,
+           ivi.Driver,
+           dmm.Base):
     "Generic SCPI IVI DMM driver"
     
     def __init__(self, *args, **kwargs):
@@ -87,6 +89,8 @@ class Base(ivi.Driver, dmm.Base):
         self.__dict__.setdefault('_do_scpi_init', True)
         
         super(Base, self).__init__(*args, **kwargs)
+
+        self._self_test_delay = 40
         
         self._identity_description = "Generic SCPI IVI DMM driver"
         self._identity_identifier = ""
@@ -99,10 +103,10 @@ class Base(ivi.Driver, dmm.Base):
         self._identity_specification_minor_version = 1
         self._identity_supported_instrument_models = ['DMM']
     
-    def initialize(self, resource = None, id_query = False, reset = False, **keywargs):
+    def _initialize(self, resource = None, id_query = False, reset = False, **keywargs):
         "Opens an I/O session to the instrument."
         
-        super(Base, self).initialize(resource, id_query, reset, **keywargs)
+        super(Base, self)._initialize(resource, id_query, reset, **keywargs)
         
         # interface clear
         if not self._driver_operation_simulate:
@@ -121,72 +125,11 @@ class Base(ivi.Driver, dmm.Base):
             self.utility.reset()
         
     
-    def _load_id_string(self):
-        if self._driver_operation_simulate:
-            self._identity_instrument_manufacturer = "Not available while simulating"
-            self._identity_instrument_model = "Not available while simulating"
-            self._identity_instrument_firmware_revision = "Not available while simulating"
-        else:
-            lst = self._ask("*IDN?").split(",")
-            self._identity_instrument_manufacturer = lst[0]
-            self._identity_instrument_model = lst[1]
-            self._identity_instrument_firmware_revision = lst[3]
-            self._set_cache_valid(True, 'identity_instrument_manufacturer')
-            self._set_cache_valid(True, 'identity_instrument_model')
-            self._set_cache_valid(True, 'identity_instrument_firmware_revision')
-    
-    def _get_identity_instrument_manufacturer(self):
-        if self._get_cache_valid():
-            return self._identity_instrument_manufacturer
-        self._load_id_string()
-        return self._identity_instrument_manufacturer
-    
-    def _get_identity_instrument_model(self):
-        if self._get_cache_valid():
-            return self._identity_instrument_model
-        self._load_id_string()
-        return self._identity_instrument_model
-    
-    def _get_identity_instrument_firmware_revision(self):
-        if self._get_cache_valid():
-            return self._identity_instrument_firmware_revision
-        self._load_id_string()
-        return self._identity_instrument_firmware_revision
-    
     def _utility_disable(self):
         pass
     
-    def _utility_error_query(self):
-        error_code = 0
-        error_message = "No error"
-        if not self._driver_operation_simulate:
-            error_code, error_message = self._ask(":system:error?").split(',')
-            error_code = int(error_code)
-            error_message = error_message.strip(' "')
-        return (error_code, error_message)
-    
     def _utility_lock_object(self):
         pass
-    
-    def _utility_reset(self):
-        if not self._driver_operation_simulate:
-            self._write("*RST")
-            self.driver_operation.invalidate_all_attributes()
-    
-    def _utility_reset_with_defaults(self):
-        self._utility_reset()
-    
-    def _utility_self_test(self):
-        code = 0
-        message = "Self test passed"
-        if not self._driver_operation_simulate:
-            self._write("*TST?")
-            # wait for test to complete
-            time.sleep(40)
-            code = int(self._read())
-            if code != 0:
-                message = "Self test failed"
-        return (code, message)
     
     def _utility_unlock_object(self):
         pass
@@ -237,10 +180,10 @@ class Base(ivi.Driver, dmm.Base):
             func = self._get_measurement_function()
             if func in MeasurementAutoRangeMapping:
                 cmd = MeasurementAutoRangeMapping[func]
-                value = self._ask("%s?" % (cmd))
-                if value == '0':
+                value = int(self._ask("%s?" % (cmd)))
+                if value == 0:
                     value = 'off'
-                elif value == '1':
+                elif value == 1:
                     value = 'on'
                 self._auto_range = value
                 self._set_cache_valid()
@@ -296,7 +239,7 @@ class Base(ivi.Driver, dmm.Base):
     def _get_trigger_delay_auto(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
             value = bool(int(self._ask("trigger:delay:auto?")))
-            self._trigger_delay = value
+            self._trigger_delay_auto = value
             self._set_cache_valid()
         return self._trigger_delay_auto
     
