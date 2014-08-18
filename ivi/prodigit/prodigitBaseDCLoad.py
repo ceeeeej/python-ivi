@@ -68,6 +68,12 @@ class prodigitBaseDCLoad(scpi.dcload.Base):
         ivi.add_property(self, 'channels.dynamic',
                         self._get_channel_dynamic,
                         self._set_channel_dynamic)
+        ivi.add_property(self, 'channels.dynamic_slew',
+                        self._get_channel_dynamic_slew,
+                        self._set_channel_dynamic_slew)
+        ivi.add_property(self, 'channels.range',
+                        self._get_channel_range,
+                        self._set_channel_range)
         #ivi.add_property(self, 'channels.current.low',
         #                self._get_channel_current_low,
         #                self._set_channel_current_low)
@@ -86,7 +92,9 @@ class prodigitBaseDCLoad(scpi.dcload.Base):
         self._channel_name = list()
         self._channel_mode = list()
         self._channel_dynamic = list()
+        self._channel_dynamic_slew = list()
         self._channel_level = list()
+        self._channel_range = list()
         self._channel_current_limit = list()
         self._channel_current_low = list()
         self._channel_current_high = list()
@@ -100,7 +108,9 @@ class prodigitBaseDCLoad(scpi.dcload.Base):
             self._channel_name.append("output%d" % (i+1))
             self._channel_mode.append(0)
             self._channel_dynamic.append(False)
+            self._channel_dynamic_slew.append(0)
             self._channel_level.append("low")
+            self._channel_range.append(0)
             self._channel_current_limit.append(self._channel_spec[i-1]['current_max'])
             self._channel_current_limit.append(0)
             #self._channel_current_low.append(0)
