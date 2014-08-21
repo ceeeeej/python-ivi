@@ -7,7 +7,3 @@ dist
 *.egg-info
 
 .env
-Vagrantfile
-my_references/
-playbook.yml
-upgrade_venv_packages.sh
