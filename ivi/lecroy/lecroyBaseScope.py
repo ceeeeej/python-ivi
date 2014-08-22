@@ -36,6 +36,7 @@ AcquisitionTypeMapping = {
     'high_resolution': 'hres',
     'average': 'aver'}
 VerticalCoupling = set(['ac', 'dc', 'gnd'])
+InputImpedance = set([1000000, 50, 'gnd'])
 # Bandwidth Limits, OFF = none, ON = 20 MHz, 200MHZ = 200 MHz
 BandwidthLimit = set(['OFF', 'ON', '200MHZ'])
 TriggerTypeMapping = {
@@ -517,6 +518,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._channel_invert.append(False)
             self._channel_probe_id.append("NONE")
             self._channel_bw_limit.append(False)
+            self._channel_coupling.append("NONE")
+            self._channel_input_impedance.append(0)
+
 
         # digital channels
         self._digital_channel_name = list()
@@ -529,7 +533,9 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             for i in range(self._analog_channel_count, self._channel_count):
                 self._channel_input_frequency_max[i] = 1e9
                 self._channel_probe_attenuation[i] = 1
-                self._channel_coupling[i] = 'D1M'
+                #self._channel_coupling[i] = 'dc'
+                #self._channel_input_impedance[i] = 1000000
+                #self._channel_coupling[i] = 'D1M'
                 self._channel_offset[i] = 0
                 self._channel_range[i] = 1
 
@@ -843,47 +849,51 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     def _get_channel_input_impedance(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            val = str(self._ask("%s:coupling?" % self._channel_name[index]))
-            if val == 'A1M':
-                self._channel_input_impedance[index] = 1000000
-                self._channel_input_coupling[index] = "AC"
-            elif val == "D1M":
-                self._channel_input_impedance[index] = 1000000
-                self._channel_input_coupling[index] = "DC"
-            elif val == 'D50':
-                self._channel_input_impedance[index] = 50
-                self._channel_input_coupling[index] = "DC"
-            elif val == 'GND':
-                self._channel_input_impedance[index] = 1000000
-                self._channel_input_coupling[index] = "GND"
+            result = str(self._ask("%s:coupling?" % self._channel_name[index])).lower().split()
+            result = result[1]
+            if result == 'a1m':
+                impedance = 1000000
+                coupling = "ac"
+            elif result == "a1m":
+                impedance = 1000000
+                coupling = "dc"
+            elif result == 'd50':
+                impedance = 50
+                coupling = "dc"
+            elif result == 'gnd':
+                impedance = 1000000
+                coupling = "gnd"
+            self._channel_input_impedance[index] = impedance
+            self._channel_coupling[index] = coupling
             self._set_cache_valid(index=index)
-        return self._channel_input_impedance[index], self._channel_input_coupling[index]
+        return self._channel_input_impedance[index]
 
     # TODO: test channel.input_impedance
     def _set_channel_input_impedance(self, index, value):
         index = ivi.get_index(self._analog_channel_name, index)
-        if value not in VerticalCoupling:
-            raise Exception('Invalid impedance selection')
+        if value not in InputImpedance:
+            raise Exception('Invalid input impedance selection')
         # Check current coupling setting to know if AC or DC
-        result = str(self._ask("%s:coupling?" % self._channel_name[index]))
-        if result[0] == "A" and value == 1000000:
-            coupling = "A1M"
-        elif result[0] == "A" and value == 50:
+        result = str(self._ask("%s:coupling?" % self._channel_name[index])).lower().split()
+        result = result[1]
+        if result[0] == "a" and value == 1000000:
+            coupling = "a1m"
+        elif result[0] == "a" and value == 50:
             raise Exception('Invalid impedance selection')
-        elif result[0] == "D" and value == 1000000:
-            coupling = "D1M"
-        elif result[0] == "D" and value == 50:
-            coupling = "D50"
-        elif result == "GND":
+        elif result[0] == "d" and value == 1000000:
+            coupling = "d1m"
+        elif result[0] == "d" and value == 50:
+            coupling = "d50"
+        elif result == "gnd":
             if value == 50:
-                coupling = "D50"
+                coupling = "d50"
             elif value == 1000000:
-                coupling = "D1M"
+                coupling = "d1m"
         else:
             raise Exception('Invalid impedance selection')
 
         if not self._driver_operation_simulate:
-            self._write("%s:coupling %s" % (self._channel_name[index], coupling))
+            self._write("%s:coupling %s" % (self._channel_name[index], coupling.upper()))
         self._channel_input_impedance[index] = value
         self._set_cache_valid(index=index)
 
@@ -976,8 +986,8 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
     def _get_channel_coupling(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_enabled[index] = self._ask("%s:coupling?" % self._channel_name[index]).lower()
-            self._set_cache_valid(index=index)
+            result = self._ask("%s:coupling?" % self._channel_name[index]).lower().split()
+            self._channel_coupling[index] = result[1]
         return self._channel_coupling[index]
 
     # TODO: FIX COUPLING AND IMPEDANCE - split coupling from impedance to avoid errors?
@@ -985,25 +995,24 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         index = ivi.get_index(self._analog_channel_name, index)
         if value not in VerticalCoupling:
             raise ivi.ValueNotSupportedException()
-        # Check current impedance setting to know if 1M, 50, or GND
-        result = str(self._ask("%s:coupling?" % self._channel_name[index]))
-        if result[1:3] == "1M" and value == "ac":
-            coupling = "A1M"
+        # Check current impedance setting to know if impedance is 1M, 50, or GND
+        result = str(self._ask("%s:coupling?" % self._channel_name[index])).lower().split()
+        # Split result and take second item in the list, the actual response we want
+        result = result[1]
+
+        if result[1:3] == "1m" or result == "gnd":
+            if value == "ac":
+                coupling = "a1m"
+            elif value == "dc":
+                coupling = "d1m"
+        elif result[1:3] == "50" and value == "dc":
+            coupling = "d50"
         elif result[1:3] == "50" and value == "ac":
             raise Exception('Invalid coupling selection, set correct impedance')
-        elif result[1:3] == "1M" and value == "dc":
-            coupling = "D1M"
-        elif result[1:3] == "50" and value == "dc":
-            coupling = "D50"
-        elif result == "GND":
-            if value == "dc":
-                coupling = "D1M"
-            elif value == "ac":
-                coupling = "A1M"
-        while not result:
-            pass
+        elif value == "gnd":
+            coupling = "gnd"
         if not self._driver_operation_simulate:
-            self._write("%s:coupling %s" % (self._channel_name[index], coupling))
+            self._write("%s:coupling %s" % (self._channel_name[index], coupling.upper()))
         self._channel_coupling[index] = value
         self._set_cache_valid(index=index)
 
@@ -1351,34 +1360,56 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         if self._driver_operation_simulate:
             return list()
 
-        self._write(":waveform:byteorder msbfirst")
-        self._write(":waveform:unsigned 1")
-        self._write(":waveform:format word")
-        self._write(":waveform:points normal")
-        self._write(":waveform:source %s" % self._channel_name[index])
+        # Send the MSB first
+        #old - self._write(":waveform:byteorder msbfirst")
+        self._write("COMM_ORDER HI")
+        self._write("COMM_FORMAT DEF9,WORD,BIN")
 
-        # Read preamble
+        # Read wave description
+        pre = self._ask("%s:INSPECT? WAVEDESC" % self._channel_name[index]).split("\r\n")
 
-        pre = self._ask(":waveform:preamble?").split(',')
+        #temp = []
+        #for item in pre:
+        #    temp.append(item.split(':'))
+        #mydict = {t[0].strip():t[1:] for t in temp}
+        #for k, v in mydict.iteritems():
+        #   k.strip()
+        #    for item in v:
+        #        temp_v = item.strip()
 
-        format = int(pre[0])
-        type = int(pre[1])
-        points = int(pre[2])
-        count = int(pre[3])
-        xincrement = float(pre[4])
-        xorigin = float(pre[5])
-        xreference = int(float(pre[6]))
-        yincrement = float(pre[7])
-        yorigin = float(pre[8])
-        yreference = int(float(pre[9]))
+        temp = []
+        for item in pre:
+            temp.append(item.split(':'))
+        mydict = {t[0].strip():["".join(elem.strip()) for elem in t[1:]] for t in temp}
 
-        if type == 1:
-            raise scope.InvalidAcquisitionTypeException()
+        format = str(mydict["COMM_TYPE"][0])
+        points = int(mydict["PNTS_PER_SCREEN"][0])
+        xincrement = float(mydict["HORIZ_INTERVAL"][0])
+        xorigin = float(mydict["HORIZ_OFFSET"][0])
+        yincrement = float(mydict["VERTICAL_GAIN"][0])
+        yorigin = float(mydict["VERTICAL_OFFSET"][0])
 
-        if format != 1:
+        #format = int(pre[0])
+        #type = int(pre[1])
+        #points = int(pre[2])
+        #count = int(pre[3])
+        #xincrement = float(pre[4])
+        #xorigin = float(pre[5])
+        # Lecroy doesn't have xreference to calculate horizontal position of point?
+        # xreference = int(float(pre[6]))
+        #yincrement = float(pre[7])
+        #yorigin = float(pre[8])
+        #yreference = int(float(pre[9]))
+        #if type == 1:
+        #    raise scope.InvalidAcquisitionTypeException()
+
+        if format != "word":
             raise UnexpectedResponseException()
 
-        self._write(":waveform:data?")
+
+        #old - self._write(":waveform:data?")
+        #self._write("%s:INSPECT? SIMPLE,WORD" % self._channel_name[index])
+        self._write("%s:WAVEFORM? DAT1" % self._channel_name[index])
 
         # Read waveform data
         raw_data = raw_data = self._read_ieee_block()
@@ -1387,7 +1418,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
 
         data = list()
         for i in range(points):
-            x = ((i - xreference) * xincrement) + xorigin
+            x = (i * xincrement) + xorigin
 
             yval = struct.unpack(">H", raw_data[i * 2:i * 2 + 2])[0]
 
@@ -1395,7 +1426,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                 # hole value
                 y = float('nan')
             else:
-                y = ((yval - yreference) * yincrement) + yorigin
+                y = (yval * yincrement) - yorigin
 
             data.append((x, y))
 

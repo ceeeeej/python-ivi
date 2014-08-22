@@ -52,6 +52,7 @@ ScreenshotImageFormatMapping = {
     'tiff': 'tiff'}
 TriggerTypes = set(['dropout', 'edge', 'glitch', 'interval', 'logic', 'qualify', 'runt', 'serial', 'slewrate', 'slate', 'tv', 'width'])
 ExtTriggerSetting = set(["Ext", "ExtDivide10", "Line"])
+VerticalCoupling = set(['ac', 'dc', 'gnd'])
 
 class lecroyWRXIA(lecroyBaseScope):
     """LeCroy WaveRunner Xi-A / MXi-A series IVI oscilloscope driver"""
@@ -115,53 +116,56 @@ class lecroyWRXIA(lecroyBaseScope):
         self._init_channels()
 
 
-    def _init_channels(self):
-        try:
-            super(lecroyBaseScope, self)._init_channels()
-        except AttributeError:
-            pass
-
-        self._channel_name = list()
-        self._channel_label = list()
-        self._channel_label_position = list()
-        self._channel_noise_filter = list()
-        self._channel_interpolation = list()
-        self._channel_probe_skew = list()
-        self._channel_invert = list()
-        self._channel_probe_id = list()
-        self._channel_bw_limit = list()
-        self._channel_input_impedance = list()
-
-        self._analog_channel_name = list()
-        for i in range(self._analog_channel_count):
-            self._channel_name.append("C%d" % (i + 1))
-            self._channel_label.append("%d" % (i + 1))
-            self._channel_label_position.append(0)
-            self._channel_noise_filter.append('None')
-            self._channel_interpolation.append("Linear")
-            self._analog_channel_name.append("C%d" % (i + 1))
-            self._channel_probe_skew.append(0)
-            self._channel_invert.append(False)
-            self._channel_probe_id.append("NONE")
-            self._channel_bw_limit.append(False)
-
-        # digital channels
-        self._digital_channel_name = list()
-        if (self._digital_channel_count > 0):
-            for i in range(self._digital_channel_count):
-                self._channel_name.append("digital%d" % i)
-                self._channel_label.append("D%d" % i)
-                self._digital_channel_name.append("digital%d" % i)
-
-            for i in range(self._analog_channel_count, self._channel_count):
-                self._channel_input_frequency_max[i] = 1e9
-                self._channel_probe_attenuation[i] = 1
-                self._channel_coupling[i] = 'D1M'
-                self._channel_offset[i] = 0
-                self._channel_range[i] = 1
-
-        self._channel_count = self._analog_channel_count + self._digital_channel_count
-        self.channels._set_list(self._channel_name)
+    # def _init_channels(self):
+    #     try:
+    #         super(lecroyBaseScope, self)._init_channels()
+    #     except AttributeError:
+    #         pass
+    #
+    #     self._channel_name = list()
+    #     self._channel_label = list()
+    #     self._channel_label_position = list()
+    #     self._channel_noise_filter = list()
+    #     self._channel_interpolation = list()
+    #     self._channel_probe_skew = list()
+    #     self._channel_invert = list()
+    #     self._channel_probe_id = list()
+    #     self._channel_bw_limit = list()
+    #     self._channel_input_impedance = list()
+    #
+    #     self._analog_channel_name = list()
+    #     for i in range(self._analog_channel_count):
+    #         self._channel_name.append("C%d" % (i + 1))
+    #         self._channel_label.append("%d" % (i + 1))
+    #         self._channel_label_position.append(0)
+    #         self._channel_noise_filter.append('None')
+    #         self._channel_interpolation.append("Linear")
+    #         self._analog_channel_name.append("C%d" % (i + 1))
+    #         self._channel_probe_skew.append(0)
+    #         self._channel_invert.append(False)
+    #         self._channel_probe_id.append("NONE")
+    #         self._channel_bw_limit.append(False)
+    #         self._channel_coupling.append("NONE")
+    #         self._channel_input_impedance.append(0)
+    #
+    #     # digital channels
+    #     self._digital_channel_name = list()
+    #     if (self._digital_channel_count > 0):
+    #         for i in range(self._digital_channel_count):
+    #             self._channel_name.append("digital%d" % i)
+    #             self._channel_label.append("D%d" % i)
+    #             self._digital_channel_name.append("digital%d" % i)
+    #
+    #         for i in range(self._analog_channel_count, self._channel_count):
+    #             self._channel_input_frequency_max[i] = 1e9
+    #             self._channel_probe_attenuation[i] = 1
+    #             #self._channel_coupling[i] = 'dc'
+    #             #self._channel_input_impedance[i] = 1000000.0
+    #             self._channel_offset[i] = 0
+    #             self._channel_range[i] = 1
+    #
+    #     self._channel_count = self._analog_channel_count + self._digital_channel_count
+    #     self.channels._set_list(self._channel_name)
 
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_label(self, index):
@@ -359,20 +363,19 @@ class lecroyWRXIA(lecroyBaseScope):
         self._set_cache_valid()
 
     # TODO: test
-    def _get_trigger_level(self, index):
+    def _get_channel_trigger_level(self, index):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._trigger_level = float(self._ask("%s:TRLV?" % (self._channel_name[index])))
+            self._channel_trigger_level[index] = float(self._ask("%s:TRLV?" % (self._channel_name[index])))
             self._set_cache_valid()
-        return self._trigger_level
+        return self._channel_trigger_level[index]
 
     # TODO: test
-    def _set_trigger_level(self, index, value):
+    def _set_channel_trigger_level(self, index, value):
         value = float(value)
         if not self._driver_operation_simulate:
             self._write("%s:TRLV %e" % (self._channel_name[index], value))
-        self._trigger_level = value
+        self._channel_trigger_level[index] = value
         self._set_cache_valid()
-
 
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _measurement_auto_setup(self):
