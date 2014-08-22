@@ -29,6 +29,8 @@ import struct
 
 from .. import ivi
 from .. import scope
+from .. import scpi
+from .. import extra
 
 AcquisitionTypeMapping = {
     'normal': 'norm',
@@ -39,11 +41,12 @@ VerticalCoupling = set(['ac', 'dc', 'gnd'])
 InputImpedance = set([1000000, 50, 'gnd'])
 # Bandwidth Limits, OFF = none, ON = 20 MHz, 200MHZ = 200 MHz
 BandwidthLimit = set(['OFF', 'ON', '200MHZ'])
-TriggerTypeMapping = {
-    'auto': 'auto',
-    'norm': 'norm',
-    'single': 'single',
-    'stop': 'stop', }
+TriggerModes = set(['auto', 'norm', 'single', 'stop'])
+
+TriggerTypes = set(
+    ['drop', 'edge', 'ev', 'glit', 'ht', 'hv', 'hv2', 'il', 'intv', 'is', 'i2', 'off', 'pl', 'ps', 'p2', 'ql', 'sng',
+     'sq', 'sr', 'teq', 'ti', 'tl'])
+
 TriggerCouplingMapping = {
     'ac': ('ac', 0, 0),
     'dc': ('dc', 0, 0),
@@ -146,11 +149,15 @@ TimebaseReferenceMapping = {
     'right': 'righ'}
 
 
-class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
-                      scope.GlitchTrigger, scope.WidthTrigger, scope.AcLineTrigger,
-                      scope.WaveformMeasurement, scope.MinMaxWaveform,
-                      scope.ContinuousAcquisition, scope.AverageAcquisition,
-                      scope.SampleMode, scope.AutoSetup):
+class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.common.Reset,
+                       scpi.common.SelfTest, scpi.common.Memory,
+                       scope.Base, scope.TVTrigger,
+                       scope.GlitchTrigger, scope.WidthTrigger, scope.AcLineTrigger,
+                       scope.WaveformMeasurement, scope.MinMaxWaveform,
+                       scope.ContinuousAcquisition, scope.AverageAcquisition,
+                       scope.SampleMode, scope.AutoSetup,
+                       extra.common.SystemSetup, extra.common.Screenshot,
+                       ivi.Driver):
     "LeCroy generic IVI oscilloscope driver"
 
     def __init__(self, *args, **kwargs):
@@ -191,9 +198,11 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._timebase_window_position = 0.0
         self._timebase_window_range = 5e-6
         self._timebase_window_scale = 500e-9
+        self._trigger_mode = 'auto'
+        self._trigger_type = 'edge'
+
         self._display_vectors = True
         self._display_labels = True
-        # TODO: Check default setting for GRID? and use as display_grid setting
         self._display_grid = "single"
 
         self._identity_description = "LeCroy generic IVI oscilloscope driver"
@@ -209,50 +218,76 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                                                       'WR64XI-A',
                                                       'WR62XI-A', 'WR44MXI-A', 'WR44XI-A']
 
-        ivi.add_property(self, 'channels[].bw_limit',
-                         self._get_channel_bw_limit,
-                         self._set_channel_bw_limit,
-                         None,
-                         ivi.Doc("""
+        self._add_property('channels[].bw_limit',
+                           self._get_channel_bw_limit,
+                           self._set_channel_bw_limit,
+                           None,
+                           ivi.Doc("""
                         Commands an internal low-pass filter.  When the filter is on, the
                         bandwidth of the channel is limited to approximately 20 MHz.
                         """))
-        ivi.add_property(self, 'channels[].invert',
-                         self._get_channel_invert,
-                         self._set_channel_invert,
-                         None,
-                         ivi.Doc("""
+        self._add_property('channels[].invert',
+                           self._get_channel_invert,
+                           self._set_channel_invert,
+                           None,
+                           ivi.Doc("""
                         Selects whether or not to invert the channel.
                         """))
-        ivi.add_property(self, 'channels[].label',
-                         self._get_channel_label,
-                         self._set_channel_label,
-                         None,
-                         ivi.Doc("""
+        self._add_property('channels[].label',
+                           self._get_channel_label,
+                           self._set_channel_label,
+                           None,
+                           ivi.Doc("""
                         Sets the channel label.  Setting a channel label also adds the label to
                         the nonvolatile label list. Setting the label will turn it's display on.
                         """))
-        ivi.add_property(self, 'channels[].label_position',
-                         self._get_channel_label_position,
-                         self._set_channel_label_position,
-                         None,
-                         ivi.Doc("""
+        self._add_property('channels[].label_position',
+                           self._get_channel_label_position,
+                           self._set_channel_label_position,
+                           None,
+                           ivi.Doc("""
                         Set the channel label positions
                         """))
-        ivi.add_property(self, 'channels[].scale',
-                         self._get_channel_scale,
-                         self._set_channel_scale,
-                         None,
-                         ivi.Doc("""
+        self._add_property('channels[].probe_skew',
+                           self._get_channel_probe_skew,
+                           self._set_channel_probe_skew,
+                           None,
+                           ivi.Doc("""
+                        Specifies the channel-to-channel skew factor for the channel.  Each analog
+                        channel can be adjusted + or - 100 ns for a total of 200 ns difference
+                        between channels.  This can be used to compensate for differences in cable
+                        delay.  Units are seconds.
+                        """))
+        self._add_property('channels[].scale',
+                           self._get_channel_scale,
+                           self._set_channel_scale,
+                           None,
+                           ivi.Doc("""
                         Specifies the vertical scale, or units per division, of the channel.  Units
                         are volts.
                         """))
+
+        self._add_property('channels[].trigger_level',
+                        self._get_channel_trigger_level,
+                        self._set_channel_trigger_level,
+                        None,
+                        ivi.Doc("""
+                        Specifies the voltage threshold for the trigger sub-system. The units are
+                        volts. This attribute affects instrument behavior only when the Trigger
+                        Type is set to one of the following values: Edge Trigger, Glitch Trigger,
+                        or Width Trigger.
+
+                        This attribute, along with the Trigger Slope, Trigger Source, and Trigger
+                        Coupling attributes, defines the trigger event when the Trigger Type is
+                        set to Edge Trigger.
+                        """))
+
         # TODO: delete following if not used in LeCroy
-        ivi.add_property(self, 'timebase.mode',
-                         self._get_timebase_mode,
-                         self._set_timebase_mode,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.mode',
+                           self._get_timebase_mode,
+                           self._set_timebase_mode,
+                           None,
+                           ivi.Doc("""
                         Sets the current time base. There are four time base modes:
 
                         * 'main': normal timebase
@@ -260,11 +295,11 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         * 'xy': channels are plotted against each other, no timebase
                         * 'roll': data moves continuously from left to right
                         """))
-        ivi.add_property(self, 'timebase.reference',
-                         self._get_timebase_reference,
-                         self._set_timebase_reference,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.reference',
+                           self._get_timebase_reference,
+                           self._set_timebase_reference,
+                           None,
+                           ivi.Doc("""
                         Sets the time reference to one division from the left side of the screen,
                         to the center of the screen, or to one division from the right side of the
                         screen. Time reference is the point on the display where the trigger point
@@ -275,72 +310,72 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         * 'center'
                         * 'right'
                         """))
-        ivi.add_property(self, 'timebase.position',
-                         self._get_timebase_position,
-                         self._set_timebase_position,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.position',
+                           self._get_timebase_position,
+                           self._set_timebase_position,
+                           None,
+                           ivi.Doc("""
                         Sets the time interval between the trigger event and the display reference
                         point on the screen. The display reference point is either left, right, or
                         center and is set with the timebase.reference property. The maximum
                         position value depends on the time/division settings.
                         """))
-        ivi.add_property(self, 'timebase.range',
-                         self._get_timebase_range,
-                         self._set_timebase_range,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.range',
+                           self._get_timebase_range,
+                           self._set_timebase_range,
+                           None,
+                           ivi.Doc("""
                         Sets the full-scale horizontal time in seconds for the main window. The
                         range is 10 times the current time-per-division setting.
                         """))
-        ivi.add_property(self, 'timebase.scale',
-                         self._get_timebase_scale,
-                         self._set_timebase_scale,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.scale',
+                           self._get_timebase_scale,
+                           self._set_timebase_scale,
+                           None,
+                           ivi.Doc("""
                         Sets the horizontal scale or units per division for the main window.
                         """))
-        ivi.add_property(self, 'timebase.window.position',
-                         self._get_timebase_window_position,
-                         self._set_timebase_window_position,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.window.position',
+                           self._get_timebase_window_position,
+                           self._set_timebase_window_position,
+                           None,
+                           ivi.Doc("""
                         Sets the horizontal position in the zoomed (delayed) view of the main
                         sweep. The main sweep range and the main sweep horizontal position
                         determine the range for this command. The value for this command must
                         keep the zoomed view window within the main sweep range.
                         """))
-        ivi.add_property(self, 'timebase.window.range',
-                         self._get_timebase_window_range,
-                         self._set_timebase_window_range,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.window.range',
+                           self._get_timebase_window_range,
+                           self._set_timebase_window_range,
+                           None,
+                           ivi.Doc("""
                         Sets the fullscale horizontal time in seconds for the zoomed (delayed)
                         window. The range is 10 times the current zoomed view window seconds per
                         division setting. The main sweep range determines the range for this
                         command. The maximum value is one half of the timebase.range value.
                         """))
-        ivi.add_property(self, 'timebase.window.scale',
-                         self._get_timebase_window_scale,
-                         self._set_timebase_window_scale,
-                         None,
-                         ivi.Doc("""
+        self._add_property('timebase.window.scale',
+                           self._get_timebase_window_scale,
+                           self._set_timebase_window_scale,
+                           None,
+                           ivi.Doc("""
                         Sets the zoomed (delayed) window horizontal scale (seconds/division). The
                         main sweep scale determines the range for this command. The maximum value
                         is one half of the timebase.scale value.
                         """))
-        ivi.add_property(self, 'display.vectors',
-                         self._get_display_vectors,
-                         self._set_display_vectors,
-                         None,
-                         ivi.Doc("""
+        self._add_property('display.vectors',
+                           self._get_display_vectors,
+                           self._set_display_vectors,
+                           None,
+                           ivi.Doc("""
                         When enabled, draws a line between consecutive waveform data points.
                         """))
-        ivi.add_property(self, 'display.grid',
-                         self._get_grid_mode,
-                         self._set_grid_mode,
-                         None,
-                         ivi.Doc("""
+        self._add_property('display.grid',
+                           self._get_grid_mode,
+                           self._set_grid_mode,
+                           None,
+                           ivi.Doc("""
                         Sets the current grid used in the display. There are multiple grid modes.
 
                         Values:
@@ -353,40 +388,54 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
                         * 'xysingle'
                         * 'xydual'
                         """))
-        ivi.add_method(self, 'system.fetch_setup',
-                       self._system_fetch_setup,
-                       ivi.Doc("""
+        self._add_property('trigger.mode',
+                           self._get_trigger_mode,
+                           self._set_trigger_mode,
+                           None,
+                           ivi.Doc("""
+                        Specifies the trigger mode of the oscilloscope.
+
+                        Values:
+                        'auto', 'norm', 'single', 'stop'
+                        * 'auto'
+                        * 'norm'
+                        * 'single'
+                        * 'stop'
+                        """))
+        self._add_method('system.fetch_setup',
+                         self._system_fetch_setup,
+                         ivi.Doc("""
                         Returns the current oscilloscope setup in the form of a binary block.  The
                         setup can be stored in memory or written to a file and then reloaded to the
                         oscilloscope at a later time with system.load_setup.
                         """))
-        ivi.add_method(self, 'system.load_setup',
-                       self._system_load_setup,
-                       ivi.Doc("""
+        self._add_method('system.load_setup',
+                         self._system_load_setup,
+                         ivi.Doc("""
                         Transfers a binary block of setup data to the scope to reload a setup
                         previously saved with system.fetch_setup.
                         """))
-        ivi.add_method(self, 'system.display_string',
-                       self._system_display_string,
-                       ivi.Doc("""
+        self._add_method('system.display_string',
+                         self._system_display_string,
+                         ivi.Doc("""
                         Writes a string to the advisory line on the instrument display.  Send None
                         or an empty string to clear the advisory line.  
                         """))
-        ivi.add_method(self, 'display.fetch_screenshot',
-                       self._display_fetch_screenshot,
-                       ivi.Doc("""
+        self._add_method('display.fetch_screenshot',
+                         self._display_fetch_screenshot,
+                         ivi.Doc("""
                         Captures the oscilloscope screen and transfers it in the specified format.
                         The display graticule is optionally inverted.
                         """))
-        ivi.add_method(self, 'memory.save',
-                       self._memory_save,
-                       ivi.Doc("""
+        self._add_method('memory.save',
+                         self._memory_save,
+                         ivi.Doc("""
                         Stores the current state of the instrument into an internal storage
                         register.  Use memory.recall to restore the saved state.
                         """))
-        ivi.add_method(self, 'memory.recall',
-                       self._memory_recall,
-                       ivi.Doc("""
+        self._add_method('memory.recall',
+                         self._memory_recall,
+                         ivi.Doc("""
                         Recalls the state of the instrument from an internal storage register
                         that was previously saved with memory.save.
                         """))
@@ -505,6 +554,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._channel_probe_id = list()
         self._channel_bw_limit = list()
         self._channel_input_impedance = list()
+        self._channel_trigger_level = list()
 
         self._analog_channel_name = list()
         for i in range(self._analog_channel_count):
@@ -520,6 +570,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             self._channel_bw_limit.append(False)
             self._channel_coupling.append("NONE")
             self._channel_input_impedance.append(0)
+            self._channel_trigger_level.append(0)
 
 
         # digital channels
@@ -533,7 +584,7 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             for i in range(self._analog_channel_count, self._channel_count):
                 self._channel_input_frequency_max[i] = 1e9
                 self._channel_probe_attenuation[i] = 1
-                #self._channel_coupling[i] = 'dc'
+                # self._channel_coupling[i] = 'dc'
                 #self._channel_input_impedance[i] = 1000000
                 #self._channel_coupling[i] = 'D1M'
                 self._channel_offset[i] = 0
@@ -909,36 +960,27 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._channel_input_frequency_max[index] = value
         self._set_cache_valid(index=index)
 
-    # TODO: test channel.probe_attenuation
+    # Tested, working on WRX104MXiA
     def _get_channel_probe_attenuation(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_probe_attenuation[index] = float(self._ask("%s:attenuation?" % self._channel_name[index]))
+            self._channel_probe_attenuation[index] = int(
+                (self._ask("%s:attenuation?" % self._channel_name[index])).split(" ")[1])
             self._set_cache_valid(index=index)
         return self._channel_probe_attenuation[index]
 
-    # TODO: test channel.probe_attenuation
+    # TODO: not working yet, can not write the correct value
     def _set_channel_probe_attenuation(self, index, value):
+        """
+        <channel> : ATTeNuation <attenuation>
+        <channel> :={C1,C2,C3,C4,EX,EX10}
+        <attenuation> : = {1, 2, 5, 10, 20, 25, 50, 100, 200, 500, 1000, 10000}
+        """
         index = ivi.get_index(self._analog_channel_name, index)
-        value = float(value)
+        # value = str(value)
         if not self._driver_operation_simulate:
-            self._write("%s:attenuation %e" % (self._channel_name[index], value))
+            self._write("%s:ATTN %e" % (self._channel_name[index], value))
         self._channel_probe_attenuation[index] = value
-        self._set_cache_valid(index=index)
-
-    def _get_channel_probe_skew(self, index):
-        index = ivi.get_index(self._analog_channel_name, index)
-        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_probe_skew[index] = float(self._ask(":%s:probe:skew?" % self._channel_name[index]))
-            self._set_cache_valid(index=index)
-        return self._channel_probe_skew[index]
-
-    def _set_channel_probe_skew(self, index, value):
-        index = ivi.get_index(self._analog_channel_name, index)
-        value = float(value)
-        if not self._driver_operation_simulate:
-            self._write(":%s:probe:skew %e" % (self._channel_name[index], value))
-        self._channel_probe_skew[index] = value
         self._set_cache_valid(index=index)
 
     def _get_channel_invert(self, index):
@@ -1108,19 +1150,19 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._trigger_holdoff = value
         self._set_cache_valid()
 
-    # TODO: test
-    def _get_trigger_level(self, index):
+    # TODO: fix - Agilent implements this as global trigger, lecroy defines triggers per channel
+    def _get_channel_trigger_level(self, index):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._trigger_level = float(self._ask("%s:TRLV?") % self._channel_name[index])
+            self._channel_trigger_level[index] = float(self._ask(("%s:TRLV?") % self._channel_name[index]).split(" ")[1])
             self._set_cache_valid()
-        return self._trigger_level
+        return self._channel_trigger_level[index]
 
-    # TODO: test
-    def _set_trigger_level(self, index, value):
+    # TODO: fix - Agilent implements this as global trigger, lecroy defines triggers per channel
+    def _set_channel_trigger_level(self, index, value):
         value = float(value)
         if not self._driver_operation_simulate:
             self._write("%s:TRLV %e" % (self._channel_name[index], value))
-        self._trigger_level = value
+        self._channel_trigger_level[index] = value
         self._set_cache_valid()
 
     def _get_trigger_edge_slope(self):
@@ -1138,56 +1180,67 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         self._trigger_edge_slope = value
         self._set_cache_valid()
 
+    # To only get the trigger source, the entire TRSE must be read out
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_source(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:source?").lower()
-            # TODO process value
-            self._trigger_source = value
+            vals = self._ask("TRSE?").split(" ")[1]
+            vals = vals.split(",")
+            #type = vals[0]
+            source = vals[vals.index('SR')+1]
+            self._trigger_source = source
             self._set_cache_valid()
         return self._trigger_source
 
+    # To only set the trigger source, the entire TRSE must be read out and then the new trigger source is hacked in
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_trigger_source(self, value):
         value = str(value)
         if value not in self._channel_name:
             raise ivi.UnknownPhysicalNameException()
         if not self._driver_operation_simulate:
-            self._write(":trigger:source %s" % value)
+            vals = self._ask("TRSE?").split(" ")[1]
+            split_vals = vals.split(",")
+            split_vals[split_vals.index('SR')+1] = value
+            vals = ",".join(split_vals)
+            self._write("TRSE %s" % vals)
         self._trigger_source = value
         self._set_cache_valid()
 
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _set_trigger_mode(self, value):
+        value = value.lower()
+        if value not in TriggerModes:
+            raise ivi.ValueNotSupportedException()
+        if not self._driver_operation_simulate:
+            self._write("TRMD %s" % value.lower())
+        self._trigger_mode = value
+        self._set_cache_valid()
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _get_trigger_mode(self):
+        if not self._driver_operation_simulate and not self._get_cache_valid():
+            value = self._ask("TRMD?").lower().split(" ")[1]
+            self._trigger_mode = value
+            self._set_cache_valid()
+        return self._trigger_mode
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_type(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask("TRMD?").lower()
-            if value == 'norm':
-                src = self._ask("TRSE?").lower()
-                if src == 'line':
-                    value = 'ac_line'
-            elif value == 'glit':
-                qual = self._ask(":trigger:glitch:qualifier?").lower()
-                if qual == 'rang':
-                    value = 'width'
-                else:
-                    value = 'glitch'
-            else:
-                value = [k for k, v in TriggerTypeMapping.items() if v == value][0]
-            self._trigger_type = value
+            vals = self._ask("TRSE?").split(" ")[1]
+            value = vals.split(",")[0]
+            self._trigger_type = value.lower()
             self._set_cache_valid()
         return self._trigger_type
 
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_trigger_type(self, value):
-        if value not in TriggerTypeMapping:
+        value = value.lower()
+        if value not in TriggerTypes:
             raise ivi.ValueNotSupportedException()
         if not self._driver_operation_simulate:
-            self._write("TRMD %s" % TriggerTypeMapping[value])
-            if value == 'ac_line':
-                self._write(":trigger:source line")
-            if value == 'glitch':
-                if self._trigger_glitch_condition == 'greater_than':
-                    self._write(":trigger:glitch:qualifier greaterthan")
-                else:
-                    self._write(":trigger:glitch:qualifier lessthan")
-            if value == 'width':
-                self._write(":trigger:glitch:qualifier range")
+            self._write("TRSE %s" % value)
         self._trigger_type = value
         self._set_cache_valid()
 
@@ -1361,26 +1414,17 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
             return list()
 
         # Send the MSB first
-        #old - self._write(":waveform:byteorder msbfirst")
+        # old - self._write(":waveform:byteorder msbfirst")
         self._write("COMM_ORDER HI")
         self._write("COMM_FORMAT DEF9,WORD,BIN")
 
-        # Read wave description
+        # Read wave description and split up parts into variables
         pre = self._ask("%s:INSPECT? WAVEDESC" % self._channel_name[index]).split("\r\n")
-
-        #temp = []
-        #for item in pre:
-        #    temp.append(item.split(':'))
-        #mydict = {t[0].strip():t[1:] for t in temp}
-        #for k, v in mydict.iteritems():
-        #   k.strip()
-        #    for item in v:
-        #        temp_v = item.strip()
 
         temp = []
         for item in pre:
             temp.append(item.split(':'))
-        mydict = {t[0].strip():["".join(elem.strip()) for elem in t[1:]] for t in temp}
+        mydict = {t[0].strip(): ["".join(elem.strip()) for elem in t[1:]] for t in temp}
 
         format = str(mydict["COMM_TYPE"][0])
         points = int(mydict["PNTS_PER_SCREEN"][0])
@@ -1389,30 +1433,14 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
         yincrement = float(mydict["VERTICAL_GAIN"][0])
         yorigin = float(mydict["VERTICAL_OFFSET"][0])
 
-        #format = int(pre[0])
-        #type = int(pre[1])
-        #points = int(pre[2])
-        #count = int(pre[3])
-        #xincrement = float(pre[4])
-        #xorigin = float(pre[5])
-        # Lecroy doesn't have xreference to calculate horizontal position of point?
-        # xreference = int(float(pre[6]))
-        #yincrement = float(pre[7])
-        #yorigin = float(pre[8])
-        #yreference = int(float(pre[9]))
-        #if type == 1:
-        #    raise scope.InvalidAcquisitionTypeException()
-
+        # Verify that the data is in 'word' format
         if format != "word":
             raise UnexpectedResponseException()
 
-
-        #old - self._write(":waveform:data?")
-        #self._write("%s:INSPECT? SIMPLE,WORD" % self._channel_name[index])
         self._write("%s:WAVEFORM? DAT1" % self._channel_name[index])
-
         # Read waveform data
-        raw_data = raw_data = self._read_ieee_block()
+        #raw_data = raw_data = self._read_ieee_block()
+        raw_data = self._read_ieee_block()
 
         # Split out points and convert to time and voltage pairs
 
@@ -1422,11 +1450,14 @@ class lecroyBaseScope(ivi.Driver, scope.Base, scope.TVTrigger,
 
             yval = struct.unpack(">H", raw_data[i * 2:i * 2 + 2])[0]
 
+            if yval > 32767:
+                yval = yval - (2 ** 16)
+
             if yval == 0:
                 # hole value
                 y = float('nan')
             else:
-                y = (yval * yincrement) - yorigin
+                y = (yincrement * yval) - yorigin
 
             data.append((x, y))
 

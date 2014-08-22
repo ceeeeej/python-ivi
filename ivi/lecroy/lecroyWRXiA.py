@@ -105,13 +105,6 @@ class lecroyWRXIA(lecroyBaseScope):
                         * Linear: Linear interpolation
                         * Sinxx: Sinx/x interpolation
                         """))
-        ivi.add_property(self, 'channels[].trigger_level',
-                         self._get_channel_trigger_level,
-                         self._set_channel_trigger_level,
-                         None,
-                         ivi.Doc("""
-                        The trigger level of the specified channel
-                        """))
 
         self._init_channels()
 
@@ -326,55 +319,57 @@ class lecroyWRXIA(lecroyBaseScope):
         self._channel_interpolation[index] = interpolate_setting
         self._set_cache_valid(index=index)
 
-    # TODO: test
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _get_channel_probe_skew(self, index):
+        index = ivi.get_index(self._analog_channel_name, index)
+        if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
+            self._channel_probe_skew[index] = float(clean_vbs((self._ask("VBS? \"Return=app.Acquisition.%s.Deskew\"" % self._channel_name[index]))))
+            self._set_cache_valid(index=index)
+        return self._channel_probe_skew[index]
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
+    def _set_channel_probe_skew(self, index, value):
+        index = ivi.get_index(self._analog_channel_name, index)
+        value = float(value)
+        if not self._driver_operation_simulate:
+            self._write("VBS \"app.Acquisition.%s.Deskew = \"\"%e\"" % (self._channel_name[index], value))
+        self._channel_probe_skew[index] = value
+        self._set_cache_valid(index=index)
+
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_source(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask("VBS? \"Return=app.Acquisition.Trigger.Source\"")
-            # TODO process value
+            value = clean_vbs(self._ask("VBS? \"Return=app.Acquisition.Trigger.Source\""))
             self._trigger_source = value
             self._set_cache_valid()
         return self._trigger_source
 
-    # TODO: test
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_trigger_source(self, value):
         value = str(value)
-        if (value not in self._channel_name) or (value not in ExtTriggerSetting):
+        if value not in self._channel_name and ExtTriggerSetting:
             raise ivi.UnknownPhysicalNameException()
         if not self._driver_operation_simulate:
-            self._write("VBS \"app.Acquisition.Trigger.Source = \"\"%s\"" % value)
+            self._write("VBS \"app.Acquisition.Trigger.Source = \"\"%s\"" % str(value))
         self._trigger_source = value
         self._set_cache_valid()
 
-    # TODO: test
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_type(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask("VBS? \"Return=app.Acquisition.Trigger.Type\"")
+            value = clean_vbs(self._ask("VBS? \"Return=app.Acquisition.Trigger.Type\"")).lower()
             self._trigger_type = value
             self._set_cache_valid()
         return self._trigger_type
 
-    # TODO: test
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_trigger_type(self, value):
+        value = value.lower()
         if value not in TriggerTypes:
             raise ivi.ValueNotSupportedException()
         if not self._driver_operation_simulate:
             self._write("VBS \"app.Acquisition.Trigger.Type = \"\"%s\"" % value)
         self._trigger_type = value
-        self._set_cache_valid()
-
-    # TODO: test
-    def _get_channel_trigger_level(self, index):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._channel_trigger_level[index] = float(self._ask("%s:TRLV?" % (self._channel_name[index])))
-            self._set_cache_valid()
-        return self._channel_trigger_level[index]
-
-    # TODO: test
-    def _set_channel_trigger_level(self, index, value):
-        value = float(value)
-        if not self._driver_operation_simulate:
-            self._write("%s:TRLV %e" % (self._channel_name[index], value))
-        self._channel_trigger_level[index] = value
         self._set_cache_valid()
 
     # Modified for LeCroy, WORKING ON WR104XI-A
