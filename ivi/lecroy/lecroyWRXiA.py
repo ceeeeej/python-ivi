@@ -167,8 +167,7 @@ class lecroyWRXIA(lecroyBaseScope):
         """
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_label[index] = clean_vbs(
-                self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index])))
+            self._channel_label[index] = self._ask("VBS? \"Return=app.Acquisition.%s.LabelsText\"" % (self._channel_name[index]))
         self._set_cache_valid(index=index)
         return self._channel_label[index]
 
@@ -193,8 +192,7 @@ class lecroyWRXIA(lecroyBaseScope):
         """
         index = ivi.get_index(self._channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_label[index] = float(
-                clean_vbs(self._ask("VBS? \"Return=app.Acquisition.%s.LabelsPosition\"" % (self._channel_name[index]))))
+            self._channel_label[index] = float(self._ask("VBS? \"Return=app.Acquisition.%s.LabelsPosition\"" % (self._channel_name[index])))
         self._set_cache_valid(index=index)
         return self._channel_label_position[index]
 
@@ -215,7 +213,7 @@ class lecroyWRXIA(lecroyBaseScope):
         self._channel_label_position[index] = value
         self._set_cache_valid(index=index)
 
-    # TODO: test
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_bw_limit(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
@@ -225,7 +223,7 @@ class lecroyWRXIA(lecroyBaseScope):
             self._set_cache_valid(index=index)
         return self._channel_bw_limit[index]
 
-    # TODO: test
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_bw_limit(self, index, value):
         """
         Sets the channel bandwidth limit setting:
@@ -249,7 +247,7 @@ class lecroyWRXIA(lecroyBaseScope):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             self._channel_invert[index] = bool(
-                int(clean_vbs(self._ask("VBS? \"Return=app.Acquisition.%s.Invert\"" % self._channel_name[index]))))
+                int(self._ask("VBS? \"Return=app.Acquisition.%s.Invert\"" % self._channel_name[index])))
             self._set_cache_valid(index=index)
         return self._channel_invert[index]
 
@@ -267,16 +265,15 @@ class lecroyWRXIA(lecroyBaseScope):
         self._channel_invert[index] = value
         self._set_cache_valid(index=index)
 
-    # TODO: re-test this
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_noise_filter(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_noise_filter[index] = clean_vbs(
-                self._ask("VBS? \"Return=app.Acquisition.%s.EnhanceResType\"" % (self._channel_name[index])))
+            self._channel_noise_filter[index] = self._ask("VBS? \"Return=app.Acquisition.%s.EnhanceResType\"" % (self._channel_name[index]))
             self._set_cache_valid(index=index)
         return self._channel_noise_filter[index]
 
-    # TODO: re-test this
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_noise_filter(self, index, filtertype):
         """
         Set the channel noise filter setting.
@@ -302,8 +299,7 @@ class lecroyWRXIA(lecroyBaseScope):
     def _get_channel_interpolation(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_interpolation[index] = clean_vbs(
-                self._ask("VBS? \"Return=app.Acquisition.%s.InterpolateType\"" % (self._channel_name[index])))
+            self._channel_interpolation[index] = self._ask("VBS? \"Return=app.Acquisition.%s.InterpolateType\"" % (self._channel_name[index]))
             self._set_cache_valid(index=index)
         return self._channel_interpolation[index]
 
@@ -323,7 +319,7 @@ class lecroyWRXIA(lecroyBaseScope):
     def _get_channel_probe_skew(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
-            self._channel_probe_skew[index] = float(clean_vbs((self._ask("VBS? \"Return=app.Acquisition.%s.Deskew\"" % self._channel_name[index]))))
+            self._channel_probe_skew[index] = float(self._ask("VBS? \"Return=app.Acquisition.%s.Deskew\"" % self._channel_name[index]))
             self._set_cache_valid(index=index)
         return self._channel_probe_skew[index]
 
@@ -339,7 +335,7 @@ class lecroyWRXIA(lecroyBaseScope):
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_source(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = clean_vbs(self._ask("VBS? \"Return=app.Acquisition.Trigger.Source\""))
+            value = self._ask("VBS? \"Return=app.Acquisition.Trigger.Source\"")
             self._trigger_source = value
             self._set_cache_valid()
         return self._trigger_source
@@ -357,7 +353,7 @@ class lecroyWRXIA(lecroyBaseScope):
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_type(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = clean_vbs(self._ask("VBS? \"Return=app.Acquisition.Trigger.Type\"")).lower()
+            value = self._ask("VBS? \"Return=app.Acquisition.Trigger.Type\"").lower()
             self._trigger_type = value
             self._set_cache_valid()
         return self._trigger_type

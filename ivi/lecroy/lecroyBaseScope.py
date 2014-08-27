@@ -218,6 +218,9 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
                                                       'WR64XI-A',
                                                       'WR62XI-A', 'WR44MXI-A', 'WR44XI-A']
 
+        # Turn off the command header to remove extra information from all responses
+        self._write("CHDR OFF")
+
         self._add_property('channels[].bw_limit',
                            self._get_channel_bw_limit,
                            self._set_channel_bw_limit,
@@ -831,10 +834,9 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         self._acquisition_number_of_points_minimum = value
 
     # Modified for LeCroy, WORKING ON WR104XI-A
-    # is MSIZ correct here?
     def _get_acquisition_record_length(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._acquisition_record_length = int(float(self._ask("MSIZ?")))
+            self._acquisition_record_length = float(self._ask("MSIZ?"))
             self._set_cache_valid()
         return self._acquisition_record_length
 
@@ -895,7 +897,6 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         self._channel_enabled[index] = value
         self._set_cache_valid(index=index)
 
-    # Edited for LeCroy, NOT WORKING YET
     # TODO: test channel.input_impedance
     def _get_channel_input_impedance(self, index):
         index = ivi.get_index(self._analog_channel_name, index)
@@ -925,8 +926,7 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         if value not in InputImpedance:
             raise Exception('Invalid input impedance selection')
         # Check current coupling setting to know if AC or DC
-        result = str(self._ask("%s:coupling?" % self._channel_name[index])).lower().split()
-        result = result[1]
+        result = str(self._ask("%s:coupling?" % self._channel_name[index])).lower()
         if result[0] == "a" and value == 1000000:
             coupling = "a1m"
         elif result[0] == "a" and value == 50:
@@ -965,7 +965,7 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         index = ivi.get_index(self._analog_channel_name, index)
         if not self._driver_operation_simulate and not self._get_cache_valid(index=index):
             self._channel_probe_attenuation[index] = int(
-                (self._ask("%s:attenuation?" % self._channel_name[index])).split(" ")[1])
+                (self._ask("%s:attenuation?" % self._channel_name[index])))
             self._set_cache_valid(index=index)
         return self._channel_probe_attenuation[index]
 
@@ -1038,9 +1038,7 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         if value not in VerticalCoupling:
             raise ivi.ValueNotSupportedException()
         # Check current impedance setting to know if impedance is 1M, 50, or GND
-        result = str(self._ask("%s:coupling?" % self._channel_name[index])).lower().split()
-        # Split result and take second item in the list, the actual response we want
-        result = result[1]
+        result = str(self._ask("%s:coupling?" % self._channel_name[index])).lower()
 
         if result[1:3] == "1m" or result == "gnd":
             if value == "ac":
@@ -1150,14 +1148,14 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         self._trigger_holdoff = value
         self._set_cache_valid()
 
-    # TODO: fix - Agilent implements this as global trigger, lecroy defines triggers per channel
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_channel_trigger_level(self, index):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._channel_trigger_level[index] = float(self._ask(("%s:TRLV?") % self._channel_name[index]).split(" ")[1])
+            self._channel_trigger_level[index] = float(self._ask(("%s:TRLV?") % self._channel_name[index]).split(",")[0].split(" ")[0])
             self._set_cache_valid()
         return self._channel_trigger_level[index]
 
-    # TODO: fix - Agilent implements this as global trigger, lecroy defines triggers per channel
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _set_channel_trigger_level(self, index, value):
         value = float(value)
         if not self._driver_operation_simulate:
@@ -1184,7 +1182,7 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_source(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            vals = self._ask("TRSE?").split(" ")[1]
+            vals = self._ask("TRSE?")
             vals = vals.split(",")
             #type = vals[0]
             source = vals[vals.index('SR')+1]
@@ -1199,7 +1197,7 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         if value not in self._channel_name:
             raise ivi.UnknownPhysicalNameException()
         if not self._driver_operation_simulate:
-            vals = self._ask("TRSE?").split(" ")[1]
+            vals = self._ask("TRSE?")
             split_vals = vals.split(",")
             split_vals[split_vals.index('SR')+1] = value
             vals = ",".join(split_vals)
@@ -1220,7 +1218,7 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_mode(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask("TRMD?").lower().split(" ")[1]
+            value = self._ask("TRMD?").lower()
             self._trigger_mode = value
             self._set_cache_valid()
         return self._trigger_mode
@@ -1228,7 +1226,7 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
     # Modified for LeCroy, WORKING ON WR104XI-A
     def _get_trigger_type(self):
         if not self._driver_operation_simulate and not self._get_cache_valid():
-            vals = self._ask("TRSE?").split(" ")[1]
+            vals = self._ask("TRSE?")
             value = vals.split(",")[0]
             self._trigger_type = value.lower()
             self._set_cache_valid()
@@ -1247,166 +1245,167 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
     def _measurement_abort(self):
         pass
 
-    def _get_trigger_tv_trigger_event(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:tv:mode?").lower()
-            # may need processing
-            self._trigger_tv_trigger_event = [k for k, v in TVTriggerEventMapping.items() if v == value][0]
-            self._set_cache_valid()
-        return self._trigger_tv_trigger_event
+    # def _get_trigger_tv_trigger_event(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         value = self._ask(":trigger:tv:mode?").lower()
+    #         # may need processing
+    #         self._trigger_tv_trigger_event = [k for k, v in TVTriggerEventMapping.items() if v == value][0]
+    #         self._set_cache_valid()
+    #     return self._trigger_tv_trigger_event
+    #
+    # def _set_trigger_tv_trigger_event(self, value):
+    #     if value not in TVTriggerEvent:
+    #         raise ivi.ValueNotSupportedException()
+    #     # may need processing
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:tv:mode %s" % TVTriggerEventMapping[value])
+    #     self._trigger_tv_trigger_event = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_tv_line_number(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         value = int(self._ask(":trigger:tv:line?"))
+    #         # may need processing
+    #         self._trigger_tv_line_number = value
+    #         self._set_cache_valid()
+    #     return self._trigger_tv_line_number
+    #
+    # def _set_trigger_tv_line_number(self, value):
+    #     value = int(value)
+    #     # may need processing
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:tv:line %e" % value)
+    #     self._trigger_tv_line_number = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_tv_polarity(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         value = self._ask(":trigger:tv:polarity?").lower()
+    #         self._trigger_tv_polarity = [k for k, v in PolarityMapping.items() if v == value][0]
+    #         self._set_cache_valid()
+    #     return self._trigger_tv_polarity
+    #
+    # def _set_trigger_tv_polarity(self, value):
+    #     if value not in PolarityMapping:
+    #         raise ivi.ValueNotSupportedException()
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:tv:polarity %s" % PolarityMapping[value])
+    #     self._trigger_tv_polarity = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_tv_signal_format(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         value = self._ask(":trigger:tv:standard?").lower()
+    #         self._trigger_tv_signal_format = [k for k, v in TVTriggerFormatMapping.items() if v == value][0]
+    #         self._set_cache_valid()
+    #     return self._trigger_tv_signal_format
+    #
+    # def _set_trigger_tv_signal_format(self, value):
+    #     if value not in TVTriggerFormatMapping:
+    #         raise ivi.ValueNotSupportedException()
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:tv:standard %s" % TVTriggerFormatMapping[value])
+    #     self._trigger_tv_signal_format = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_glitch_condition(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         value = self._ask(":trigger:glitch:qualifier?").lower()
+    #         if value in GlitchConditionMapping.values():
+    #             self._trigger_glitch_condition = [k for k, v in GlitchConditionMapping.items() if v == value][0]
+    #             self._set_cache_valid()
+    #     return self._trigger_glitch_condition
+    #
+    # def _set_trigger_glitch_condition(self, value):
+    #     if value not in GlitchConditionMapping:
+    #         raise ivi.ValueNotSupportedException()
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:glitch:qualifier %s" % GlitchConditionMapping[value])
+    #     self._trigger_glitch_condition = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_glitch_polarity(self):
+    #     return self._get_trigger_width_polarity()
+    #
+    # def _set_trigger_glitch_polarity(self, value):
+    #     self._set_trigger_width_polarity(value)
+    #
+    # def _get_trigger_glitch_width(self):
+    #     if self._get_trigger_glitch_condition() == 'greater_than':
+    #         return self._get_trigger_width_threshold_low()
+    #     else:
+    #         return self._get_trigger_width_threshold_high()
+    #
+    # def _set_trigger_glitch_width(self, value):
+    #     if self._get_trigger_glitch_condition() == 'greater_than':
+    #         self._set_trigger_width_threshold_low(value)
+    #     else:
+    #         self._set_trigger_width_threshold_high(value)
+    #
+    # def _get_trigger_width_condition(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         value = self._ask(":trigger:glitch:qualifier?").lower()
+    #         if value in WidthConditionMapping.values():
+    #             self._trigger_width_condition = [k for k, v in WidthConditionMapping.items() if v == value][0]
+    #             self._set_cache_valid()
+    #     return self._trigger_width_condition
+    #
+    # def _set_trigger_width_condition(self, value):
+    #     if value not in WidthConditionMapping:
+    #         raise ivi.ValueNotSupportedException()
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:glitch:qualifier %s" % WidthConditionMapping[value])
+    #     self._trigger_width_condition = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_width_threshold_high(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         self._trigger_width_threshold_high = float(self._ask(":trigger:glitch:lessthan?"))
+    #         self._set_cache_valid()
+    #     return self._trigger_width_threshold_high
+    #
+    # def _set_trigger_width_threshold_high(self, value):
+    #     value = float(value)
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:glitch:lessthan %e" % value)
+    #     self._trigger_width_threshold_high = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_width_threshold_low(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         self._trigger_width_threshold_low = float(self._ask(":trigger:glitch:greaterthan?"))
+    #         self._set_cache_valid()
+    #     return self._trigger_width_threshold_low
+    #
+    # def _set_trigger_width_threshold_low(self, value):
+    #     value = float(value)
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:glitch:greaterthan %e" % value)
+    #     self._trigger_width_threshold_low = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_width_polarity(self):
+    #     if not self._driver_operation_simulate and not self._get_cache_valid():
+    #         value = self._ask(":trigger:glitch:polarity?").lower()
+    #         self._trigger_width_polarity = [k for k, v in PolarityMapping.items() if v == value][0]
+    #         self._set_cache_valid()
+    #     return self._trigger_width_polarity
+    #
+    # def _set_trigger_width_polarity(self, value):
+    #     if value not in Polarity:
+    #         raise ivi.ValueNotSupportedException()
+    #     if not self._driver_operation_simulate:
+    #         self._write(":trigger:glitch:polarity %s" % PolarityMapping[value])
+    #     self._trigger_width_polarity = value
+    #     self._set_cache_valid()
+    #
+    # def _get_trigger_ac_line_slope(self):
+    #     return self._get_trigger_edge_slope()
+    #
+    # def _set_trigger_ac_line_slope(self, value):
+    #     self._set_trigger_edge_slope(value)
 
-    def _set_trigger_tv_trigger_event(self, value):
-        if value not in TVTriggerEvent:
-            raise ivi.ValueNotSupportedException()
-        # may need processing
-        if not self._driver_operation_simulate:
-            self._write(":trigger:tv:mode %s" % TVTriggerEventMapping[value])
-        self._trigger_tv_trigger_event = value
-        self._set_cache_valid()
-
-    def _get_trigger_tv_line_number(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = int(self._ask(":trigger:tv:line?"))
-            # may need processing
-            self._trigger_tv_line_number = value
-            self._set_cache_valid()
-        return self._trigger_tv_line_number
-
-    def _set_trigger_tv_line_number(self, value):
-        value = int(value)
-        # may need processing
-        if not self._driver_operation_simulate:
-            self._write(":trigger:tv:line %e" % value)
-        self._trigger_tv_line_number = value
-        self._set_cache_valid()
-
-    def _get_trigger_tv_polarity(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:tv:polarity?").lower()
-            self._trigger_tv_polarity = [k for k, v in PolarityMapping.items() if v == value][0]
-            self._set_cache_valid()
-        return self._trigger_tv_polarity
-
-    def _set_trigger_tv_polarity(self, value):
-        if value not in PolarityMapping:
-            raise ivi.ValueNotSupportedException()
-        if not self._driver_operation_simulate:
-            self._write(":trigger:tv:polarity %s" % PolarityMapping[value])
-        self._trigger_tv_polarity = value
-        self._set_cache_valid()
-
-    def _get_trigger_tv_signal_format(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:tv:standard?").lower()
-            self._trigger_tv_signal_format = [k for k, v in TVTriggerFormatMapping.items() if v == value][0]
-            self._set_cache_valid()
-        return self._trigger_tv_signal_format
-
-    def _set_trigger_tv_signal_format(self, value):
-        if value not in TVTriggerFormatMapping:
-            raise ivi.ValueNotSupportedException()
-        if not self._driver_operation_simulate:
-            self._write(":trigger:tv:standard %s" % TVTriggerFormatMapping[value])
-        self._trigger_tv_signal_format = value
-        self._set_cache_valid()
-
-    def _get_trigger_glitch_condition(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:glitch:qualifier?").lower()
-            if value in GlitchConditionMapping.values():
-                self._trigger_glitch_condition = [k for k, v in GlitchConditionMapping.items() if v == value][0]
-                self._set_cache_valid()
-        return self._trigger_glitch_condition
-
-    def _set_trigger_glitch_condition(self, value):
-        if value not in GlitchConditionMapping:
-            raise ivi.ValueNotSupportedException()
-        if not self._driver_operation_simulate:
-            self._write(":trigger:glitch:qualifier %s" % GlitchConditionMapping[value])
-        self._trigger_glitch_condition = value
-        self._set_cache_valid()
-
-    def _get_trigger_glitch_polarity(self):
-        return self._get_trigger_width_polarity()
-
-    def _set_trigger_glitch_polarity(self, value):
-        self._set_trigger_width_polarity(value)
-
-    def _get_trigger_glitch_width(self):
-        if self._get_trigger_glitch_condition() == 'greater_than':
-            return self._get_trigger_width_threshold_low()
-        else:
-            return self._get_trigger_width_threshold_high()
-
-    def _set_trigger_glitch_width(self, value):
-        if self._get_trigger_glitch_condition() == 'greater_than':
-            self._set_trigger_width_threshold_low(value)
-        else:
-            self._set_trigger_width_threshold_high(value)
-
-    def _get_trigger_width_condition(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:glitch:qualifier?").lower()
-            if value in WidthConditionMapping.values():
-                self._trigger_width_condition = [k for k, v in WidthConditionMapping.items() if v == value][0]
-                self._set_cache_valid()
-        return self._trigger_width_condition
-
-    def _set_trigger_width_condition(self, value):
-        if value not in WidthConditionMapping:
-            raise ivi.ValueNotSupportedException()
-        if not self._driver_operation_simulate:
-            self._write(":trigger:glitch:qualifier %s" % WidthConditionMapping[value])
-        self._trigger_width_condition = value
-        self._set_cache_valid()
-
-    def _get_trigger_width_threshold_high(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._trigger_width_threshold_high = float(self._ask(":trigger:glitch:lessthan?"))
-            self._set_cache_valid()
-        return self._trigger_width_threshold_high
-
-    def _set_trigger_width_threshold_high(self, value):
-        value = float(value)
-        if not self._driver_operation_simulate:
-            self._write(":trigger:glitch:lessthan %e" % value)
-        self._trigger_width_threshold_high = value
-        self._set_cache_valid()
-
-    def _get_trigger_width_threshold_low(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            self._trigger_width_threshold_low = float(self._ask(":trigger:glitch:greaterthan?"))
-            self._set_cache_valid()
-        return self._trigger_width_threshold_low
-
-    def _set_trigger_width_threshold_low(self, value):
-        value = float(value)
-        if not self._driver_operation_simulate:
-            self._write(":trigger:glitch:greaterthan %e" % value)
-        self._trigger_width_threshold_low = value
-        self._set_cache_valid()
-
-    def _get_trigger_width_polarity(self):
-        if not self._driver_operation_simulate and not self._get_cache_valid():
-            value = self._ask(":trigger:glitch:polarity?").lower()
-            self._trigger_width_polarity = [k for k, v in PolarityMapping.items() if v == value][0]
-            self._set_cache_valid()
-        return self._trigger_width_polarity
-
-    def _set_trigger_width_polarity(self, value):
-        if value not in Polarity:
-            raise ivi.ValueNotSupportedException()
-        if not self._driver_operation_simulate:
-            self._write(":trigger:glitch:polarity %s" % PolarityMapping[value])
-        self._trigger_width_polarity = value
-        self._set_cache_valid()
-
-    def _get_trigger_ac_line_slope(self):
-        return self._get_trigger_edge_slope()
-
-    def _set_trigger_ac_line_slope(self, value):
-        self._set_trigger_edge_slope(value)
-
+    # Modified for LeCroy, WORKING ON WR104XI-A
     def _measurement_fetch_waveform(self, index):
         index = ivi.get_index(self._channel_name, index)
 
@@ -1421,29 +1420,40 @@ class lecroyBaseScope(scpi.common.IdnCommand, scpi.common.ErrorQuery, scpi.commo
         # Read wave description and split up parts into variables
         pre = self._ask("%s:INSPECT? WAVEDESC" % self._channel_name[index]).split("\r\n")
 
+
+        # Replace following with a more simple solution, make it < Python 2.7 compatible
         temp = []
         for item in pre:
             temp.append(item.split(':'))
-        mydict = {t[0].strip(): ["".join(elem.strip()) for elem in t[1:]] for t in temp}
 
-        format = str(mydict["COMM_TYPE"][0])
-        points = int(mydict["PNTS_PER_SCREEN"][0])
-        xincrement = float(mydict["HORIZ_INTERVAL"][0])
-        xorigin = float(mydict["HORIZ_OFFSET"][0])
-        yincrement = float(mydict["VERTICAL_GAIN"][0])
-        yorigin = float(mydict["VERTICAL_OFFSET"][0])
+        # Dict comprehension, python 2.7+
+        #mydict = {t[0].strip(): ["".join(elem.strip()) for elem in t[1:]] for t in temp}
+        #format = str(mydict["COMM_TYPE"][0])
+        #points = int(mydict["PNTS_PER_SCREEN"][0])
+        #xincrement = float(mydict["HORIZ_INTERVAL"][0])
+        #xorigin = float(mydict["HORIZ_OFFSET"][0])
+        #yincrement = float(mydict["VERTICAL_GAIN"][0])
+        #yorigin = float(mydict["VERTICAL_OFFSET"][0])
+
+        # Dict with lost comprehension, python 2.6+
+        mydict = dict([(d[0].strip(), "".join(d[1:]).strip()) for d in temp])
+
+        format = str(mydict["COMM_TYPE"])
+        points = int(mydict["PNTS_PER_SCREEN"])
+        xincrement = float(mydict["HORIZ_INTERVAL"])
+        xorigin = float(mydict["HORIZ_OFFSET"])
+        yincrement = float(mydict["VERTICAL_GAIN"])
+        yorigin = float(mydict["VERTICAL_OFFSET"])
 
         # Verify that the data is in 'word' format
-        if format != "word":
-            raise UnexpectedResponseException()
+        if format.lower() != "word":
+            raise ivi.UnexpectedResponseException()
 
-        self._write("%s:WAVEFORM? DAT1" % self._channel_name[index])
         # Read waveform data
+        self._write("%s:WAVEFORM? DAT1" % self._channel_name[index])
         raw_data = raw_data = self._read_ieee_block()
-        #raw_data = self._read_ieee_block()
 
         # Split out points and convert to time and voltage pairs
-
         data = list()
         for i in range(points):
             x = (i * xincrement) + xorigin
